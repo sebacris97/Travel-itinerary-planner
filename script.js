@@ -104,16 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- EXTERNAL SERVICES ---
     
-    function handleFlightSearch(originName, destName, dateStr) {
+function handleFlightSearch(originName, destName, dateStr) {
         if (!originName || !destName) {
             showModal(i18n.get("info_incomplete_data"), null, i18n.get("modal_info"));
             return;
         }
         
-        // CORRECTION: Use the standard Google Flights URL.
         const query = `from ${originName} to ${destName} on ${dateStr} one way`;
-        // NOTE: The original URL template was malformed/incomplete. Using a correct one for the intended service.
-        const url = `https://www.google.com/travel/flights/search?q=${encodeURIComponent(query)}`;
+        // CORRECCIÓN: Se usa la URL estándar de Google Flights y se agrega el parámetro de moneda (curr)
+        // También se corrigió el error de sintaxis en la interpolación de la URL original
+        const url = `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}&curr=${currencyCode}`;
         
         window.open(url, '_blank');
     }
@@ -168,17 +168,20 @@ document.addEventListener('DOMContentLoaded', () => {
         window.open(url, '_blank');
     }
 
-    function handleHotelSearch(city, checkin, checkout) {
+function handleHotelSearch(city, checkin, checkout) {
         if (!city) { showModal(i18n.get("info_enter_city_name"), null, i18n.get("modal_info")); return; }
-        const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(city)}&checkin=${checkin}&checkout=${checkout}&group_adults=2&no_rooms=1&do_search=1`;
+        
+        // Booking.com: Se agrega 'selected_currency'
+        const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(city)}&checkin=${checkin}&checkout=${checkout}&group_adults=2&no_rooms=1&do_search=1&selected_currency=${currencyCode}`;
         window.open(url, '_blank');
     }
     
     // NEW: Function for Airbnb Search
     function handleAirbnbSearch(city, checkin, checkout) {
         if (!city) { showModal(i18n.get("info_enter_city_name"), null, i18n.get("modal_info")); return; }
-        // Using a standard Airbnb search URL template based on user's example, setting adults to 2.
-        const url = `https://www.airbnb.com/s/${encodeURIComponent(city)}/homes?checkin=${checkin}&checkout=${checkout}&adults=2`; 
+        
+        // Airbnb: Se agrega 'currency'
+        const url = `https://www.airbnb.com/s/${encodeURIComponent(city)}/homes?checkin=${checkin}&checkout=${checkout}&adults=2&currency=${currencyCode}`; 
         window.open(url, '_blank');
     }
 
