@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Itinerary Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-900 text-white p-4 md:p-8 min-h-screen antialiased">
+
+    <div class="max-w-4xl mx-auto relative">
+        
+        <div class="absolute top-0 right-0 w-28 p-2 md:p-0"> 
+            <label for="currency-selector" class="block text-[10px] font-medium text-gray-400 mb-0.5 text-right">Currency</label>
+            <select id="currency-selector" class="w-full p-1 text-xs bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                <option value="USD" data-symbol="$">USD ($)</option>
+                <option value="EUR" data-symbol="€">EUR (€)</option>
+                <option value="GBP" data-symbol="£">GBP (£)</option>
+                <option value="JPY" data-symbol="¥">JPY (¥)</option>
+            </select>
+        </div>
+        <header class="mb-6 pt-16">
+            <h1 class="text-3xl md:text-4xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-400">
+                Travel Itinerary Planner
+            </h1>
+            <p class="text-center text-gray-500 text-xs mt-2">Your changes are saved automatically in the URL</p>
+        </header>
+
+        <section class="mb-6 p-5 bg-gray-800 rounded-2xl shadow-lg">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="startDate" class="block text-sm font-medium text-gray-300 mb-1">Start Date</label>
+                    <input type="date" id="startDate" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" value="" translate="no">
+                </div>
+                <div>
+                    <label for="totalDays" class="block text-sm font-medium text-gray-300 mb-1">Total Trip Days</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="totalDays" min="1" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" value="14">
+                        <button id="autofill-days-btn" title="Autofill Days Equally" class="flex-shrink-0 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-all duration-200 text-sm">
+                            Autofill Days
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-4 grid grid-cols-3 gap-4">
+            <div class="text-center p-3 bg-blue-900/50 rounded-xl border border-blue-700">
+                <div class="text-xs text-blue-200 uppercase font-semibold">Total Days</div>
+                <div id="summary-total" class="text-2xl font-bold" translate="no">14</div>
+            </div>
+            <div class="text-center p-3 bg-green-900/50 rounded-xl border border-green-700">
+                <div class="text-xs text-green-200 uppercase font-semibold">Planned</div>
+                <div id="summary-planned" class="text-2xl font-bold" translate="no">0</div>
+            </div>
+            <div class="text-center p-3 bg-gray-700 rounded-xl border border-gray-600" id="summary-remaining-box">
+                <div class="text-xs text-gray-200 uppercase font-semibold">Remaining</div>
+                <div id="summary-remaining" class="text-2xl font-bold" translate="no">14</div>
+            </div>
+        </section>
+
+        <section class="mb-6 grid grid-cols-3 gap-4">
+            <div class="text-center p-3 bg-indigo-900/40 rounded-xl border border-indigo-700/50">
+                <div class="text-xs text-indigo-300 uppercase font-semibold">Accommodation</div>
+                <div class="text-xl font-bold text-indigo-100" translate="no"><span id="acc-currency-symbol">$</span><span id="total-accommodation">0</span></div>
+            </div>
+            <div class="text-center p-3 bg-orange-900/40 rounded-xl border border-orange-700/50">
+                <div class="text-xs text-orange-300 uppercase font-semibold">Transport</div>
+                <div class="text-xl font-bold text-orange-100" translate="no"><span id="trans-currency-symbol">$</span><span id="total-transport">0</span></div>
+            </div>
+            <div class="text-center p-3 bg-emerald-900/40 rounded-xl border border-emerald-700/50 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-green-300"></div>
+                <div class="text-xs text-emerald-300 uppercase font-bold">Total</div>
+                <div class="text-2xl font-black text-white" translate="no"><span id="global-currency-symbol">$</span><span id="total-global">0</span></div>
+            </div>
+        </section>
+
+        <main>
+            <div id="destination-list" class="space-y-2">
+            </div>
+        </main>
+
+        <footer class="mt-6">
+            <div class="p-4 bg-gray-800 rounded-2xl shadow-lg mb-4">
+                <label for="bulk-add" class="block text-sm font-medium text-gray-300 mb-2">Add Multiple Cities (e.g. Barcelona, Paris, London)</label>
+                <div class="flex gap-2">
+                    <textarea id="bulk-add" rows="2" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Barcelona, Paris, London..."></textarea>
+                    <button id="bulk-add-btn" class="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md transition-all duration-200 flex-shrink-0" title="Add Cities">
+                        <span data-lucide="plus"></span>
+                    </button>
+                </div>
+            </div>
+
+            <button id="add-destination-btn" class="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white font-semibold rounded-lg shadow-lg transition-all duration-200 flex items-center justify-center gap-2">
+                <span data-lucide="plus-circle"></span>
+                Add New Destination
+            </button>
+            
+            <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
+                <button id="reset-btn" class="w-full py-2 px-4 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                    <span data-lucide="refresh-cw"></span> Reset
+                </button>
+                <button id="save-btn" class="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                    <span data-lucide="save"></span> Save JSON
+                </button>
+                <button id="load-btn" class="w-full py-2 px-4 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                    <span data-lucide="upload"></span> Load JSON
+                </button>
+                <button id="copy-url-btn" class="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                    <span data-lucide="link"></span> Copy URL
+                </button>
+                <button id="export-ics-btn" class="w-full py-2 px-4 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                    <span data-lucide="calendar"></span> Export ICS
+                </button>
+                <input type="file" id="load-input" accept=".json" class="hidden">
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
