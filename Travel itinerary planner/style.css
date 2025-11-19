@@ -1,0 +1,34 @@
+/* Custom Styles */
+body {
+    font-family: 'Inter', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Default dark theme */
+html {
+    color-scheme: dark;
+}
+
+/* Style for the dragging element (SortableJS) */
+.dragging {
+    opacity: 0.5;
+    background-color: #4a5568; 
+}
+
+/* Style for the drag handle */
+.drag-handle {
+    cursor: move;
+    touch-action: none;
+}
+
+/* Hide spin buttons on number inputs (WebKit) */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+    -webkit-appearance: none; 
+    margin: 0; 
+}
+
+/* Hide spin buttons on number inputs (Firefox) */
+input[type=number] {
+    -moz-appearance: textfield;
+}
