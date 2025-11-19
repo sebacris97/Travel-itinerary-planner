@@ -59,6 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
             'ics_transport': 'Transport',
             'ics_trip_to': 'Trip to',
             'bus_code_error': 'The search platform requires internal codes for cities. Please enter details manually.',
+            'info_flight_number': 'Flight number and date are required to track flight.',
+            'info_flight_number_format': 'Flight number format: AA1234 (Airline Code + Number)',
         },
         // Fallback for languages not explicitly defined
         get: (key) => i18n['en-US'][key] || key
@@ -83,6 +85,11 @@ document.addEventListener('DOMContentLoaded', () => {
         formatSkyscanner: (dateStr) => {
             const [year, month, day] = dateStr.split('-');
             return `${year.slice(2)}${month}${day}`; 
+        },
+        // NEW: Get Date Components
+        getComponents: (dateStr) => {
+             const [year, month, day] = dateStr.split('-');
+             return { year, month, day };
         }
     };
 
@@ -105,7 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // CORRECTION: Use the standard Google Flights URL.
         const query = `from ${originName} to ${destName} on ${dateStr} one way`;
-        const url = `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}`;
+        // NOTE: The original URL template was malformed/incomplete. Using a correct one for the intended service.
+        const url = `https://www.google.com/travel/flights/search?q=${encodeURIComponent(query)}`;
         
         window.open(url, '_blank');
     }
@@ -136,10 +144,41 @@ document.addEventListener('DOMContentLoaded', () => {
         window.open(rome2rioUrl, '_blank');
     }
 
+    // NEW: Function for FlightStats Search
+    function handleFlightStatsSearch(flightNumber, dateStr) {
+        if (!flightNumber || !dateStr) {
+            showModal(i18n.get("info_flight_number"), null, i18n.get("modal_info"));
+            return;
+        }
+
+        // Flight number is usually like AA1234
+        const match = flightNumber.toUpperCase().match(/^([A-Z]{2,3})(\d+)$/);
+        if (!match) {
+            showModal(i18n.get("info_flight_number_format"), null, i18n.get("modal_error"));
+            return;
+        }
+        
+        const airlineCode = match[1];
+        const flightNum = match[2];
+        const { year, month, day } = DateUtils.getComponents(dateStr);
+
+        // Construct the URL using the provided template
+        const url = `https://www.flightstats.com/v2/flight-tracker/${airlineCode}/${flightNum}?year=${year}&month=${month}&date=${day}`;
+        
+        window.open(url, '_blank');
+    }
 
     function handleHotelSearch(city, checkin, checkout) {
         if (!city) { showModal(i18n.get("info_enter_city_name"), null, i18n.get("modal_info")); return; }
         const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(city)}&checkin=${checkin}&checkout=${checkout}&group_adults=2&no_rooms=1&do_search=1`;
+        window.open(url, '_blank');
+    }
+    
+    // NEW: Function for Airbnb Search
+    function handleAirbnbSearch(city, checkin, checkout) {
+        if (!city) { showModal(i18n.get("info_enter_city_name"), null, i18n.get("modal_info")); return; }
+        // Using a standard Airbnb search URL template based on user's example, setting adults to 2.
+        const url = `https://www.airbnb.com/s/${encodeURIComponent(city)}/homes?checkin=${checkin}&checkout=${checkout}&adults=2`; 
         window.open(url, '_blank');
     }
 
@@ -185,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
              // Must check if the option exists, as the list was reduced
              const selectedOption = currencySelector.querySelector(`option[value="${currencyCode}"]`);
              if(selectedOption) {
-                currencySymbol = selectedOption.dataset.symbol;
+                 currencySymbol = selectedOption.dataset.symbol;
              } else {
                  // Fallback to USD if loaded currency is no longer an option 
                  currencyCode = 'USD';
@@ -235,10 +274,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const rightCol = createElement('div', 'flex items-center gap-3 w-full md:w-auto justify-between md:justify-end bg-gray-900/50 p-2 rounded-lg border border-gray-700/50');
         
+        // --- Accommodation Search Buttons ---
+        const searchBtnsWrapper = createElement('div', 'flex gap-2');
+
         const bookingBtn = createElement('button', 'bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors shadow-sm');
         bookingBtn.dataset.action = 'search-hotel';
         bookingBtn.title = "Search on Booking.com";
         bookingBtn.innerHTML = '<span data-lucide="bed-double" class="w-4 h-4"></span><span class="hidden sm:inline font-medium">Booking</span>';
+        
+        // NEW: Airbnb button
+        const airbnbBtn = createElement('button', 'bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors shadow-sm');
+        airbnbBtn.dataset.action = 'search-airbnb';
+        airbnbBtn.title = "Search on Airbnb";
+        airbnbBtn.innerHTML = '<span data-lucide="house" class="w-4 h-4"></span><span class="hidden sm:inline font-medium">Airbnb</span>';
+        
+        searchBtnsWrapper.append(bookingBtn, airbnbBtn);
+        // --- End Search Buttons ---
 
         const accWrapper = createElement('div', 'relative group');
         accWrapper.title = "Accommodation Cost";
@@ -271,17 +322,23 @@ document.addEventListener('DOMContentLoaded', () => {
         deleteBtn.dataset.id = dest.id;
         deleteBtn.dataset.action = 'delete';
 
-        rightCol.append(bookingBtn, accWrapper, daysWrapper, deleteBtn);
+        // Updated rightCol append to include the search buttons wrapper
+        rightCol.append(searchBtnsWrapper, accWrapper, daysWrapper, deleteBtn);
         row.append(leftCol, rightCol);
         card.appendChild(row);
         itemWrapper.appendChild(card);
 
         if (index < destinations.length - 1) {
-            const connector = createElement('div', 'transport-connector h-16 flex items-center justify-center relative gap-2 my-2');
-            connector.innerHTML = `<div class="border-l-2 border-dashed border-gray-600 h-full absolute" style="left: 50%; transform: translateX(-50%); z-index: 0;"></div>`;
-            const controls = createElement('div', 'z-10 flex items-center gap-2 bg-gray-900 p-1.5 rounded-lg border border-gray-700 shadow-sm');
+            const connector = createElement('div', 'transport-connector flex items-center justify-center relative gap-2 my-2 flex-col'); // Add flex-col for stacking
+            connector.innerHTML = `<div class="border-l-2 border-dashed border-gray-600 h-16 absolute top-0" style="left: 50%; transform: translateX(-50%); z-index: 0;"></div>`;
             
-            const select = createElement('select', 'transport-select bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 focus:ring-blue-500 focus:outline-none');
+            // NOTE: Adjusted classes for controls to be flex-col and have a width
+            const controls = createElement('div', 'z-10 flex flex-col gap-2 bg-gray-900 p-2 rounded-lg border border-gray-700 shadow-xl w-64'); 
+            
+            // MAIN CONTROL ROW (Select, Cost, Search Buttons)
+            const mainControls = createElement('div', 'flex items-center gap-2 w-full');
+            
+            const select = createElement('select', 'transport-select bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 focus:ring-blue-500 focus:outline-none flex-grow');
             select.dataset.id = dest.id;
             select.dataset.action = 'edit-transport';
             ['plane|✈️ Plane', 'train|🚈 Train', 'bus|🚌 Bus', 'car|🚗 Car'].forEach(opt => {
@@ -291,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.appendChild(option);
             });
 
-            const costWrapper = createElement('div', 'relative');
+            const costWrapper = createElement('div', 'relative flex-shrink-0');
             // FIX: Add translate="no" to the currency symbol span
             costWrapper.innerHTML = `<span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs" translate="no">${currencySymbol}</span>`;
             const costInput = createElement('input', 'cost-input w-20 bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 pl-5 focus:ring-blue-500 focus:outline-none');
@@ -304,36 +361,80 @@ document.addEventListener('DOMContentLoaded', () => {
             costInput.dataset.id = dest.id;
             costInput.dataset.action = 'edit-trans-cost';
             costWrapper.appendChild(costInput);
+
+            mainControls.append(select, costWrapper);
             
-            // Conditional button for Flights
+            // Conditional search buttons
             if (dest.transport === 'plane') {
-                const flightBtn = createElement('button', 'bg-sky-600 hover:bg-sky-500 text-white p-1.5 rounded shadow transition-colors');
+                const flightBtn = createElement('button', 'bg-sky-600 hover:bg-sky-500 text-white p-1.5 rounded shadow transition-colors flex-shrink-0');
                 flightBtn.dataset.action = 'search-flight';
                 flightBtn.title = "Search flights";
                 flightBtn.innerHTML = '<span data-lucide="search" class="w-3 h-3"></span>';
-                controls.appendChild(flightBtn);
+                mainControls.appendChild(flightBtn);
             }
-
-            // Conditional button for Bus search (Rome2Rio)
             if (dest.transport === 'bus') {
-                const busBtn = createElement('button', 'bg-green-600 hover:bg-green-500 text-white p-1.5 rounded shadow transition-colors');
-                busBtn.dataset.action = 'search-bus'; // New action
+                const busBtn = createElement('button', 'bg-green-600 hover:bg-green-500 text-white p-1.5 rounded shadow transition-colors flex-shrink-0');
+                busBtn.dataset.action = 'search-bus'; 
                 busBtn.title = "Search route (Rome2Rio)";
                 busBtn.innerHTML = '<span data-lucide="bus" class="w-3 h-3"></span>';
-                controls.appendChild(busBtn);
+                mainControls.appendChild(busBtn);
             }
-
-            // NEW: Conditional button for Train search (Rome2Rio)
             if (dest.transport === 'train') {
-                const trainBtn = createElement('button', 'bg-red-600 hover:bg-red-500 text-white p-1.5 rounded shadow transition-colors');
-                trainBtn.dataset.action = 'search-train'; // New action
+                const trainBtn = createElement('button', 'bg-red-600 hover:bg-red-500 text-white p-1.5 rounded shadow transition-colors flex-shrink-0');
+                trainBtn.dataset.action = 'search-train'; 
                 trainBtn.title = "Search route (Rome2Rio)";
-                // Nota: Usamos "train" si "railway-track" no se resuelve
                 trainBtn.innerHTML = '<span data-lucide="train" class="w-3 h-3"></span>'; 
-                controls.appendChild(trainBtn);
+                mainControls.appendChild(trainBtn);
             }
 
-            controls.append(select, costWrapper);
+            // APPEND MAIN CONTROLS TO THE CONTAINER
+            controls.appendChild(mainControls);
+            
+            // NEW DETAIL INPUTS SECTION
+            
+            // Helper function to create an input element with dataset properties
+            const createDetailInput = (action, type, placeholder, value, icon, extraClass = '') => {
+                const wrapper = createElement('div', `flex-1 relative ${extraClass}`);
+                wrapper.title = placeholder;
+                const iconSpan = createElement('span', 'absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500');
+                iconSpan.innerHTML = `<span data-lucide="${icon}" class="w-3 h-3"></span>`;
+                
+                const input = createElement('input', 'transport-detail-input w-full bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 pl-6 focus:ring-blue-500 focus:outline-none');
+                input.type = type;
+                input.placeholder = placeholder;
+                input.value = value || '';
+                input.dataset.id = dest.id;
+                input.dataset.action = action;
+                if(type === 'time' || action === 'edit-flight-num') input.setAttribute('translate', 'no');
+                
+                wrapper.append(iconSpan, input);
+                return wrapper;
+            };
+
+            const timeRefRow = createElement('div', 'flex gap-2 w-full');
+            timeRefRow.append(
+                createDetailInput('edit-dep-time', 'time', 'Depart', dest.departureTime, 'clock'),
+                createDetailInput('edit-arr-time', 'time', 'Arrive', dest.arrivalTime, 'clock-3')
+            );
+            
+            // NEW: Flight Number Input
+            const flightNumInputWrapper = createDetailInput('edit-flight-num', 'text', 'Flight Number (IB2601)', dest.flightNumber, 'plane'); 
+            
+            // NEW: FlightStats Button
+            const flightStatsBtn = createElement('button', 'bg-gray-600 hover:bg-gray-500 text-white p-1.5 rounded shadow transition-colors flex-shrink-0'); 
+            flightStatsBtn.dataset.action = 'search-flightstats'; 
+            flightStatsBtn.title = "Track Flight (FlightStats)"; 
+            flightStatsBtn.innerHTML = '<span data-lucide="compass" class="w-3 h-3"></span>'; 
+
+            // NEW: Conditional rendering for flight details
+            if (dest.transport === 'plane') {
+                const flightDetailRow = createElement('div', 'flex gap-2 w-full items-center');
+                flightDetailRow.append(flightNumInputWrapper, flightStatsBtn);
+                controls.append(timeRefRow, flightDetailRow);
+            } else {
+                controls.append(timeRefRow);
+            }
+            
             connector.appendChild(controls);
             itemWrapper.appendChild(connector);
         }
@@ -378,18 +479,29 @@ document.addEventListener('DOMContentLoaded', () => {
             if (dateDisplay) dateDisplay.textContent = `${DateUtils.formatLocale(currentStartDate)} → ${DateUtils.formatLocale(endDate)}`;
 
             const bookingBtn = item.querySelector('[data-action="search-hotel"]');
+            const airbnbBtn = item.querySelector('[data-action="search-airbnb"]'); // Select the new Airbnb button
+            
             if (bookingBtn) {
                 bookingBtn.dataset.name = dest.name;
                 bookingBtn.dataset.start = currentStartDate; 
-                bookingBtn.dataset.end = endDate;         
+                bookingBtn.dataset.end = endDate; 
+            }
+            
+            // NEW: Assign data to Airbnb button
+            if (airbnbBtn) {
+                airbnbBtn.dataset.name = dest.name;
+                airbnbBtn.dataset.start = currentStartDate; 
+                airbnbBtn.dataset.end = endDate; 
             }
 
             const flightBtn = item.querySelector('[data-action="search-flight"]');
-            const busBtn = item.querySelector('[data-action="search-bus"]'); // Seleccionar el botón de bus
-            const trainBtn = item.querySelector('[data-action="search-train"]'); // Seleccionar el botón de train
+            const busBtn = item.querySelector('[data-action="search-bus"]'); 
+            const trainBtn = item.querySelector('[data-action="search-train"]'); 
+            const flightStatsBtn = item.querySelector('[data-action="search-flightstats"]'); 
+
             
             // Asignar los datos de Origen/Destino/Fecha al botón de búsqueda
-            if ((flightBtn || busBtn || trainBtn) && index < destinations.length - 1) {
+            if ((flightBtn || busBtn || trainBtn || flightStatsBtn) && index < destinations.length - 1) { 
                 const nextDest = destinations[index + 1];
                 
                 if (flightBtn) {
@@ -411,7 +523,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     trainBtn.dataset.dest = nextDest.name;
                     trainBtn.dataset.date = endDate;
                 }
+                
+                // NEW: ASSIGN DATA TO FLIGHTSTATS BUTTON
+                if (flightStatsBtn) {
+                     flightStatsBtn.dataset.fltnum = dest.flightNumber; 
+                     flightStatsBtn.dataset.date = endDate; 
+                }
             }
+
 
             currentStartDate = endDate;
         });
@@ -452,6 +571,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (action === 'edit-days') { dest.days = parseInt(target.value) || 1; updateCalculations(); }
         if (action === 'edit-acc-cost') { dest.accommodationCost = target.value; updateCalculations(); }
         if (action === 'edit-trans-cost') { dest.transportCost = target.value; updateCalculations(); }
+        // NEW: Detailed Transport Listeners (only require URL update)
+        if (action === 'edit-dep-time') { dest.departureTime = target.value; updateURL(); }
+        if (action === 'edit-arr-time') { dest.arrivalTime = target.value; updateURL(); }
+        if (action === 'edit-flight-num') { dest.flightNumber = target.value; updateCalculations(); } 
     });
 
     destinationList.addEventListener('change', (e) => {
@@ -476,6 +599,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (action === 'search-hotel') {
             handleHotelSearch(btn.dataset.name, btn.dataset.start, btn.dataset.end);
         }
+        // NEW: Airbnb search listener
+        if (action === 'search-airbnb') {
+             handleAirbnbSearch(btn.dataset.name, btn.dataset.start, btn.dataset.end);
+        }
         if (action === 'search-flight') {
             handleFlightSearch(btn.dataset.origin, btn.dataset.dest, btn.dataset.date);
         }
@@ -485,6 +612,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // NEW: Train Search Listener
         if (action === 'search-train') {
             handleTrainSearch(btn.dataset.origin, btn.dataset.dest, btn.dataset.date); 
+        }
+        // NEW: FlightStats Listener
+        if (action === 'search-flightstats') {
+             handleFlightStatsSearch(btn.dataset.fltnum, btn.dataset.date); 
         }
     });
     
@@ -549,7 +680,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Use i18n for description text and dynamic currency symbol/formatted cost
             let desc = `${i18n.get("ics_stay")}: ${dest.days} days.`;
             if (dest.accommodationCost) desc += `\\n${i18n.get("ics_hotel")}: ${currencySymbol}${formatCost(dest.accommodationCost)}`;
-            if (idx < destinations.length - 1 && dest.transportCost) desc += `\\n${i18n.get("ics_transport")}: ${dest.transport} (${currencySymbol}${formatCost(dest.transportCost)})`;
+            
+            if (idx < destinations.length - 1) {
+                if (dest.transportCost) desc += `\\n${i18n.get("ics_transport")}: ${dest.transport} (${currencySymbol}${formatCost(dest.transportCost)})`;
+                
+                // NEW: Add detailed transport info
+                if (dest.departureTime) desc += `\\nDeparture Time: ${dest.departureTime}`;
+                if (dest.arrivalTime) desc += `\\nArrival Time: ${dest.arrivalTime}`;
+                if (dest.flightNumber) desc += `\\nFlight No: ${dest.flightNumber}`;
+            }
+
             ics.push("BEGIN:VEVENT", `DTSTART;VALUE=DATE:${start}`, `DTEND;VALUE=DATE:${end}`, `SUMMARY:${i18n.get("ics_trip_to")} ${dest.name}`, `DESCRIPTION:${desc}`, "END:VEVENT");
             curr = next;
         });
@@ -562,8 +702,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function generateId() { return crypto.randomUUID(); }
+    
+    // MODIFIED: Add new fields to the initial destination object
     function addDestination(name = "New City") {
-        destinations.push({ id: generateId(), name: name, days: 1, accommodationCost: "", transport: "plane", transportCost: "" });
+        destinations.push({ 
+            id: generateId(), 
+            name: name, 
+            days: 1, 
+            accommodationCost: "", 
+            transport: "plane", 
+            transportCost: "",
+            departureTime: "", // NEW
+            arrivalTime: "",   // NEW
+            bookingRef: "",    // KEPT FOR STATE/STORAGE, but field is unused
+            flightNumber: ""   // NEW: Flight Number
+        });
         renderList();
     }
 
