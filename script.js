@@ -37,6 +37,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyList = document.getElementById('history-list');
     const closeHistoryBtn = document.getElementById('close-history-btn');
     const toggleHistoryBtn = document.getElementById('toggle-history-btn');
+    
+    // Seed Selectors
+    const copySeedBtn = document.getElementById('copy-seed-btn');
+    const loadSeedBtn = document.getElementById('load-seed-btn');
 
     // --- STATE & INTERNATIONALIZATION (i18n) ---
     let destinations = [];
@@ -202,6 +206,54 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = trip.url;
     }
 
+    // --- COPY / LOAD SEED ---
+    
+    function copyHistorySeed() {
+        if (!tripHistory || tripHistory.length === 0) {
+            return showModal("History is empty. Nothing to copy.", null, "Info");
+        }
+        try {
+            const seed = LZString.compressToEncodedURIComponent(JSON.stringify(tripHistory));
+            navigator.clipboard.writeText(seed).then(() => {
+                const originalText = copySeedBtn.innerHTML;
+                copySeedBtn.innerHTML = `<span data-lucide="check"></span> Copied!`;
+                lucide.createIcons();
+                setTimeout(() => {
+                    copySeedBtn.innerHTML = originalText;
+                    lucide.createIcons();
+                }, 2000);
+            });
+        } catch (e) {
+            showModal("Failed to create seed.", null, "Error");
+        }
+    }
+
+    function loadHistorySeed() {
+        showTextareaModal(
+            "Load History Seed",
+            "Paste your history seed here (this will replace current history):",
+            (text) => {
+                if (!text) return;
+                try {
+                    const data = LZString.decompressFromEncodedURIComponent(text.trim());
+                    if (!data) throw new Error("Invalid seed");
+                    
+                    const importedHistory = JSON.parse(data);
+                    if (!Array.isArray(importedHistory)) throw new Error("Invalid format");
+
+                    tripHistory = importedHistory;
+                    localStorage.setItem('trip_history', JSON.stringify(tripHistory));
+                    setActiveTrip(null);
+                    renderHistory();
+                    showModal("History loaded successfully!", null, "Success");
+                } catch (e) {
+                    showModal("Invalid or corrupted seed.", null, "Error");
+                }
+            }
+        );
+    }
+
+
     function renderHistory() {
         historyList.innerHTML = '';
         toggleHistoryBtn.classList.remove('hidden');
@@ -271,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('history_sidebar_open', 'false');
     }
 
-    // --- MODALES (Mejorados con Teclado) ---
+    // --- MODALES ---
 
     function showModal(message, onConfirm, title = i18n.get("modal_info")) {
         const existingModal = document.getElementById('custom-modal');
@@ -279,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const modal = document.createElement('div');
         modal.id = 'custom-modal';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70] p-4';
         
         const container = document.createElement('div');
         container.className = 'bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm border border-gray-700';
@@ -320,24 +372,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(modal);
 
         const handleKey = (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                closeModal();
-            }
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (onConfirm) {
-                    onConfirm();
-                    closeModal();
-                } else {
-                    closeModal();
-                }
-            }
+            if (e.key === 'Escape') { e.preventDefault(); closeModal(); }
+            if (e.key === 'Enter') { e.preventDefault(); if (onConfirm) onConfirm(); closeModal(); }
         };
         document.addEventListener('keydown', handleKey);
 
-        if(okBtn) okBtn.focus();
-        else cancelBtn.focus();
+        if(okBtn) okBtn.focus(); else cancelBtn.focus();
     }
 
     function showPromptModal(title, message, defaultValue, onConfirm) {
@@ -346,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const modal = document.createElement('div');
         modal.id = 'custom-modal';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70] p-4';
         
         const container = document.createElement('div');
         container.className = 'bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm border border-gray-700';
@@ -403,13 +443,72 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('keydown', handleKey);
     }
 
+    function showTextareaModal(title, message, onConfirm) {
+        const existingModal = document.getElementById('custom-modal');
+        if (existingModal) existingModal.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'custom-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70] p-4';
+        
+        const container = document.createElement('div');
+        container.className = 'bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md border border-gray-700';
+        
+        const h3 = document.createElement('h3');
+        h3.className = 'text-xl font-bold mb-4 text-white';
+        h3.textContent = title;
+        
+        const p = document.createElement('label');
+        p.className = 'block text-gray-300 mb-2 text-sm';
+        p.textContent = message; 
+
+        const textarea = document.createElement('textarea');
+        textarea.className = 'w-full p-2 mb-4 h-32 bg-gray-900 border border-gray-600 rounded-lg text-white text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono';
+        textarea.placeholder = "Paste seed here...";
+
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'flex justify-end gap-3';
+
+        const closeModal = () => {
+            document.removeEventListener('keydown', handleKey);
+            modal.remove();
+        };
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = closeModal;
+        
+        const okBtn = document.createElement('button');
+        okBtn.className = 'px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors';
+        okBtn.textContent = 'Load';
+        
+        const handleConfirm = () => {
+            onConfirm(textarea.value);
+            closeModal();
+        };
+
+        okBtn.onclick = handleConfirm;
+        btnContainer.append(cancelBtn, okBtn);
+        container.append(h3, p, textarea, btnContainer);
+        modal.appendChild(container);
+        document.body.appendChild(modal);
+        
+        setTimeout(() => textarea.focus(), 50);
+
+        const handleKey = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); closeModal(); }
+        };
+        document.addEventListener('keydown', handleKey);
+    }
+
     function showSaveOptionsModal(currentName, onOverwrite, onSaveNew) {
         const existingModal = document.getElementById('custom-modal');
         if (existingModal) existingModal.remove();
 
         const modal = document.createElement('div');
         modal.id = 'custom-modal';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70] p-4';
         
         const container = document.createElement('div');
         container.className = 'bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm border border-gray-700';
@@ -657,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderList();
     }
 
-    // --- RENDERIZADO ---
+    // --- RENDERIZADO SEGURO ---
     
     function createDestinationCard(dest, index) {
         const template = document.getElementById('destination-template');
@@ -1045,6 +1144,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Listeners para el historial
     if(saveHistoryBtn) saveHistoryBtn.addEventListener('click', saveToHistory);
     if(closeHistoryBtn) closeHistoryBtn.addEventListener('click', closeSidebar);
+    if(copySeedBtn) copySeedBtn.addEventListener('click', copyHistorySeed);
+    if(loadSeedBtn) loadSeedBtn.addEventListener('click', loadHistorySeed);
     
     if(toggleHistoryBtn) {
         toggleHistoryBtn.addEventListener('click', () => {
@@ -1187,16 +1288,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         loadFromURL();
         
-        // Inicializar historial y recuperar estado
+// Inicializar historial
         renderHistory();
         
         const isDesktop = window.innerWidth >= 768;
-        if (tripHistory.length > 0 || localStorage.getItem('history_sidebar_open') === 'true') {
-             const wasOpen = localStorage.getItem('history_sidebar_open') === 'true';
-             if (wasOpen && isDesktop) {
+        
+        if (isDesktop) {
+             const storedState = localStorage.getItem('history_sidebar_open');
+             // Abrir si está guardado como 'true' O si nunca se guardó nada (primera vez / default)
+             if (storedState === 'true' || storedState === null) {
                  openSidebar();
              }
         }
+        // En móvil: No hacemos nada, así se mantiene cerrado por defecto.
 
         if (!destinations.length) renderList(); 
     }
