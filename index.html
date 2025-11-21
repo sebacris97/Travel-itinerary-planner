@@ -103,7 +103,7 @@
                 Add New Destination
             </button>
             
-            <div class="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2">
+            <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
                 <button id="save-history-btn" class="w-full py-2 px-4 bg-pink-600 hover:bg-pink-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm" aria-label="Save to History">
                     <span data-lucide="bookmark"></span> Save History
                 </button>
@@ -127,7 +127,7 @@
         </footer>
     </div>
 
-    <div id="history-sidebar" class="fixed top-0 left-0 h-full w-64 bg-gray-900 border-r border-gray-700 shadow-2xl transform transition-transform duration-300 -translate-x-full z-40 flex flex-col hidden">
+    <div id="history-sidebar" class="fixed top-0 left-0 h-full w-64 bg-gray-900 border-r border-gray-700 shadow-2xl transform transition-transform duration-300 -translate-x-full z-[60] flex flex-col hidden">
         <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800">
             <h3 class="font-bold text-lg text-white flex items-center gap-2">
                 <span data-lucide="history"></span> History
@@ -143,7 +143,7 @@
         </div>
     </div>
 
-    <button id="toggle-history-btn" class="fixed top-1/2 left-0 transform -translate-y-1/2 bg-gray-800 border-r border-t border-b border-gray-600 p-2 rounded-r-lg text-white shadow-lg z-30 hover:bg-gray-700 hidden" title="Show History">
+    <button id="toggle-history-btn" class="fixed top-1/2 left-0 transform -translate-y-1/2 bg-gray-800 border-r border-t border-b border-gray-600 p-2 rounded-r-lg text-white shadow-lg z-[60] hover:bg-gray-700 hidden" title="Show History">
         <span data-lucide="chevron-right"></span>
     </button>
 

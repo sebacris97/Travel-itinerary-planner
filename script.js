@@ -122,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateURL(); 
                     existingTrip.url = window.location.href;
                     existingTrip.date = new Date().toISOString();
-                    // Mover al principio
                     tripHistory = tripHistory.filter(t => t.id !== activeTripId);
                     tripHistory.unshift(existingTrip);
                     localStorage.setItem('trip_history', JSON.stringify(tripHistory));
@@ -224,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = document.createElement('div');
             const isActive = trip.id === activeTripId;
             
-            // Lógica de estilo: Borde azul si es activo, pero SIN texto "ACTIVE"
             const borderClass = isActive ? 'border-blue-500 bg-gray-800/80 ring-1 ring-blue-500' : 'border-gray-700 bg-gray-800 hover:border-blue-400';
             
             item.className = `${borderClass} border rounded-lg p-3 mb-3 transition-all cursor-pointer group relative`;
@@ -297,7 +295,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnContainer = document.createElement('div');
         btnContainer.className = 'flex justify-end gap-3';
 
-        // Lógica de cierre
         const closeModal = () => {
             document.removeEventListener('keydown', handleKey);
             modal.remove();
@@ -322,7 +319,6 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.appendChild(container);
         document.body.appendChild(modal);
 
-        // Manejador de Teclado
         const handleKey = (e) => {
             if (e.key === 'Escape') {
                 e.preventDefault();
@@ -661,7 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderList();
     }
 
-    // --- RENDERIZADO SEGURO ---
+    // --- RENDERIZADO ---
     
     function createDestinationCard(dest, index) {
         const template = document.getElementById('destination-template');
@@ -1193,9 +1189,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Inicializar historial y recuperar estado
         renderHistory();
+        
+        const isDesktop = window.innerWidth >= 768;
         if (tripHistory.length > 0 || localStorage.getItem('history_sidebar_open') === 'true') {
              const wasOpen = localStorage.getItem('history_sidebar_open') === 'true';
-             if (wasOpen) {
+             if (wasOpen && isDesktop) {
                  openSidebar();
              }
         }
