@@ -31,17 +31,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyUrlBtn = document.getElementById('copy-url-btn');
     const exportIcsBtn = document.getElementById('export-ics-btn');
 
+    // Historial Selectors
+    const saveHistoryBtn = document.getElementById('save-history-btn');
+    const historySidebar = document.getElementById('history-sidebar');
+    const historyList = document.getElementById('history-list');
+    const closeHistoryBtn = document.getElementById('close-history-btn');
+    const toggleHistoryBtn = document.getElementById('toggle-history-btn');
+
     // --- STATE & INTERNATIONALIZATION (i18n) ---
     let destinations = [];
     let startDate = new Date().toISOString().split('T')[0];
     let totalDays = 14;
-    let currencyCode = 'USD'; // Default currency
+    let currencyCode = 'USD'; 
     let currencySymbol = '$';
 
-    // Get the user's default locale for automatic number/date formatting
     const userLocale = navigator.language || 'en-US';
 
-    // Simple dictionary for dynamic strings
     const i18n = {
         'en-US': {
             'info_incomplete_data': 'Origin and destination are needed to search for flights.',
@@ -62,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
             'info_flight_number': 'Flight number and date are required to track flight.',
             'info_flight_number_format': 'Flight number format: AA1234 (Airline Code + Number)',
         },
-        // Fallback for languages not explicitly defined
         get: (key) => i18n['en-US'][key] || key
     };
     
@@ -75,18 +79,12 @@ document.addEventListener('DOMContentLoaded', () => {
             date.setUTCDate(date.getUTCDate() + days);
             return DateUtils.formatISO(date);
         },
-        // Use user's locale for date formatting
         formatLocale: (dateStr) => {
             if (!dateStr) return '';
             const date = DateUtils.parse(dateStr);
             return date.toLocaleDateString(userLocale, { timeZone: 'UTC' });
         },
         formatICS: (dateStr) => dateStr.replace(/-/g, ''),
-        formatSkyscanner: (dateStr) => {
-            const [year, month, day] = dateStr.split('-');
-            return `${year.slice(2)}${month}${day}`; 
-        },
-        // NEW: Get Date Components
         getComponents: (dateStr) => {
              const [year, month, day] = dateStr.split('-');
              return { year, month, day };
@@ -95,63 +93,243 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function formatCost(cost) {
         if (!cost || isNaN(cost)) return '0';
-        // Use Intl.NumberFormat and userLocale for number localization
         return parseFloat(cost).toLocaleString(userLocale, {
              minimumFractionDigits: 0,
              maximumFractionDigits: 0
         });
     }
 
+    // --- HISTORIAL Y GUARDADO ---
+    let tripHistory = JSON.parse(localStorage.getItem('trip_history') || '[]');
+
+    function saveToHistory() {
+        const name = prompt("Enter a name for this trip (e.g., 'Summer 2024'):", `Trip ${new Date().toLocaleDateString()}`);
+        if (!name) return;
+
+        updateURL();
+        
+        const newTrip = {
+            id: crypto.randomUUID(),
+            name: name.trim(),
+            url: window.location.href,
+            date: new Date().toISOString()
+        };
+
+        tripHistory.unshift(newTrip);
+        localStorage.setItem('trip_history', JSON.stringify(tripHistory));
+        
+        renderHistory();
+        openSidebar();
+    }
+
+    // NUEVA FUNCIÓN: Renombrar viaje
+    function renameTrip(e, id) {
+        e.stopPropagation(); // Evita que se cargue el viaje al hacer clic en el lápiz
+        
+        const trip = tripHistory.find(t => t.id === id);
+        if (!trip) return;
+
+        const newName = prompt("Rename trip:", trip.name);
+        if (newName && newName.trim() !== "") {
+            trip.name = newName.trim();
+            localStorage.setItem('trip_history', JSON.stringify(tripHistory));
+            renderHistory();
+        }
+    }
+
+    function deleteFromHistory(e, id) {
+        e.stopPropagation(); 
+        if(!confirm("Delete this trip from history?")) return;
+
+        tripHistory = tripHistory.filter(t => t.id !== id);
+        localStorage.setItem('trip_history', JSON.stringify(tripHistory));
+        renderHistory();
+    }
+
+    function loadTripFromHistory(url) {
+        window.location.href = url;
+    }
+
+    function renderHistory() {
+        historyList.innerHTML = '';
+
+        if (tripHistory.length === 0) {
+            historySidebar.classList.add('hidden');
+            toggleHistoryBtn.classList.add('hidden');
+            closeSidebar();
+            return;
+        }
+
+        toggleHistoryBtn.classList.remove('hidden');
+        historySidebar.classList.remove('hidden');
+
+        tripHistory.forEach(trip => {
+            const item = document.createElement('div');
+            item.className = 'bg-gray-800 border border-gray-700 rounded-lg p-3 mb-3 hover:border-blue-500 transition-colors cursor-pointer group relative';
+            item.onclick = () => loadTripFromHistory(trip.url);
+
+            const dateStr = new Date(trip.date).toLocaleDateString();
+            
+            // Actualizado: Agregado botón de edición (pencil) y contenedor flex para los botones
+            item.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex-grow pr-2 overflow-hidden">
+                        <h4 class="font-bold text-sm text-blue-300 mb-1 group-hover:text-blue-400 truncate" title="${trip.name}">${trip.name}</h4>
+                        <p class="text-[10px] text-gray-500">Saved: ${dateStr}</p>
+                    </div>
+                    <div class="flex gap-1 shrink-0">
+                        <button class="edit-history-btn text-gray-500 hover:text-yellow-400 p-1 rounded hover:bg-gray-700 transition-colors" title="Rename">
+                            <span data-lucide="pencil" class="w-3 h-3"></span>
+                        </button>
+                        <button class="delete-history-btn text-gray-500 hover:text-red-400 p-1 rounded hover:bg-gray-700 transition-colors" title="Delete">
+                            <span data-lucide="trash-2" class="w-3 h-3"></span>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Listener para editar
+            const editBtn = item.querySelector('.edit-history-btn');
+            editBtn.addEventListener('click', (e) => renameTrip(e, trip.id));
+
+            // Listener para borrar
+            const delBtn = item.querySelector('.delete-history-btn');
+            delBtn.addEventListener('click', (e) => deleteFromHistory(e, trip.id));
+
+            historyList.appendChild(item);
+        });
+        
+        lucide.createIcons();
+    }
+
+    function openSidebar() {
+        historySidebar.classList.remove('-translate-x-full');
+        localStorage.setItem('history_sidebar_open', 'true');
+    }
+
+    function closeSidebar() {
+        historySidebar.classList.add('-translate-x-full');
+        localStorage.setItem('history_sidebar_open', 'false');
+    }
+
+    // --- AUTOCOMPLETE ---
+    const debounce = (func, delay) => {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => func.apply(null, args), delay);
+        };
+    };
+
+    function closeAllSuggestions() {
+        document.querySelectorAll('.autocomplete-suggestions').forEach(el => el.remove());
+    }
+
+    const handleCitySearch = debounce(async (input, id) => {
+        const query = input.value.trim();
+        if (query.length < 2) {
+            closeAllSuggestions();
+            return;
+        }
+
+        try {
+            const lang = userLocale.split('-')[0] || 'en';
+            const url = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(query)}&language=${lang}&format=json&origin=*`;
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.search && data.search.length > 0) {
+                showSuggestions(input, data.search, id);
+            } else {
+                closeAllSuggestions();
+            }
+        } catch (error) {
+            console.error("Wikidata API error:", error);
+        }
+    }, 300);
+
+    function showSuggestions(input, results, id) {
+        closeAllSuggestions();
+        
+        const container = document.createElement('div');
+        container.className = 'autocomplete-suggestions absolute left-0 right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded-lg z-50 max-h-60 overflow-y-auto shadow-2xl';
+        
+        results.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'autocomplete-suggestion p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700 last:border-0 transition-colors flex flex-col items-start';
+            
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'font-bold text-sm text-white';
+            labelDiv.textContent = item.label;
+
+            div.appendChild(labelDiv);
+
+            if (item.description) {
+                const descDiv = document.createElement('div');
+                descDiv.className = 'text-xs text-gray-400';
+                descDiv.textContent = item.description;
+                div.appendChild(descDiv);
+            }
+            
+            div.addEventListener('click', (e) => {
+                e.stopPropagation(); 
+                input.value = item.label;
+                
+                const dest = destinations.find(d => d.id === id);
+                if (dest) {
+                    dest.name = item.label;
+                    updateURL();
+                    updateCalculations(); 
+                }
+                
+                closeAllSuggestions();
+            });
+            container.appendChild(div);
+        });
+
+        if (getComputedStyle(input.parentNode).position === 'static') {
+            input.parentNode.classList.add('relative');
+        }
+        
+        input.parentNode.appendChild(container);
+    }
+
+
     // --- EXTERNAL SERVICES ---
-    
-function handleFlightSearch(originName, destName, dateStr) {
+    function handleFlightSearch(originName, destName, dateStr) {
         if (!originName || !destName) {
             showModal(i18n.get("info_incomplete_data"), null, i18n.get("modal_info"));
             return;
         }
-        
-        const query = `from ${originName} to ${destName} on ${dateStr} one way`;
-        // CORRECCIÓN: Se usa la URL estándar de Google Flights y se agrega el parámetro de moneda (curr)
-        // También se corrigió el error de sintaxis en la interpolación de la URL original
-        const url = `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}&curr=${currencyCode}`;
-        
-        window.open(url, '_blank');
+        const query = `flights from ${originName} to ${destName} on ${dateStr}`;
+        const url = `https://www.google.com/travel/flights?q=$?q=${encodeURIComponent(query)}&curr=${currencyCode}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
     }
 
-    // FIX: Function for Bus Search (Rome2Rio)
     function handleBusSearch(originName, destName, dateStr) {
         if (!originName || !destName || !dateStr) {
             showModal("Origin, destination, and date are required to search for buses.", null, i18n.get("modal_info"));
             return;
         }
-
-        // Rome2Rio URL format for Buses
         const rome2rioUrl = `https://www.rome2rio.com/map/${encodeURIComponent(originName)}/${encodeURIComponent(destName)}?departureDate=${dateStr}#r/Bus/s/0`;
-        
-        window.open(rome2rioUrl, '_blank');
+        window.open(rome2rioUrl, '_blank', 'noopener,noreferrer');
     }
 
-    // NEW: Function for Train Search (Rome2Rio)
     function handleTrainSearch(originName, destName, dateStr) {
         if (!originName || !destName || !dateStr) {
             showModal("Origin, destination, and date are required to search for trains.", null, i18n.get("modal_info"));
             return;
         }
-
-        // Rome2Rio URL format for Trains
         const rome2rioUrl = `https://www.rome2rio.com/map/${encodeURIComponent(originName)}/${encodeURIComponent(destName)}?departureDate=${dateStr}#r/Train/s/0`;
-        
-        window.open(rome2rioUrl, '_blank');
+        window.open(rome2rioUrl, '_blank', 'noopener,noreferrer');
     }
 
-    // NEW: Function for FlightStats Search
     function handleFlightStatsSearch(flightNumber, dateStr) {
         if (!flightNumber || !dateStr) {
             showModal(i18n.get("info_flight_number"), null, i18n.get("modal_info"));
             return;
         }
-
-        // Flight number is usually like AA1234
         const match = flightNumber.toUpperCase().match(/^([A-Z]{2,3})(\d+)$/);
         if (!match) {
             showModal(i18n.get("info_flight_number_format"), null, i18n.get("modal_error"));
@@ -161,33 +339,24 @@ function handleFlightSearch(originName, destName, dateStr) {
         const airlineCode = match[1];
         const flightNum = match[2];
         const { year, month, day } = DateUtils.getComponents(dateStr);
-
-        // Construct the URL using the provided template
         const url = `https://www.flightstats.com/v2/flight-tracker/${airlineCode}/${flightNum}?year=${year}&month=${month}&date=${day}`;
-        
-        window.open(url, '_blank');
+        window.open(url, '_blank', 'noopener,noreferrer');
     }
 
-function handleHotelSearch(city, checkin, checkout) {
+    function handleHotelSearch(city, checkin, checkout) {
         if (!city) { showModal(i18n.get("info_enter_city_name"), null, i18n.get("modal_info")); return; }
-        
-        // Booking.com: Se agrega 'selected_currency'
         const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(city)}&checkin=${checkin}&checkout=${checkout}&group_adults=2&no_rooms=1&do_search=1&selected_currency=${currencyCode}`;
-        window.open(url, '_blank');
+        window.open(url, '_blank', 'noopener,noreferrer');
     }
     
-    // NEW: Function for Airbnb Search
     function handleAirbnbSearch(city, checkin, checkout) {
         if (!city) { showModal(i18n.get("info_enter_city_name"), null, i18n.get("modal_info")); return; }
-        
-        // Airbnb: Se agrega 'currency'
         const url = `https://www.airbnb.com/s/${encodeURIComponent(city)}/homes?checkin=${checkin}&checkout=${checkout}&adults=2&currency=${currencyCode}`; 
-        window.open(url, '_blank');
+        window.open(url, '_blank', 'noopener,noreferrer');
     }
 
-    // --- URL ---
+    // --- URL & STATE ---
     function updateURL() {
-        // Added currencyCode (c) to state
         const state = { s: startDate, t: totalDays, c: currencyCode, d: destinations }; 
         try {
             const jsonStr = JSON.stringify(state);
@@ -221,15 +390,12 @@ function handleHotelSearch(city, checkin, checkout) {
         if (state.s || state.startDate) startDate = state.s || state.startDate;
         if (state.t || state.totalDays) totalDays = state.t || state.totalDays;
         
-        // Load currency and update symbol
         if (state.c || state.currencyCode) { 
              currencyCode = state.c || state.currencyCode;
-             // Must check if the option exists, as the list was reduced
              const selectedOption = currencySelector.querySelector(`option[value="${currencyCode}"]`);
              if(selectedOption) {
                  currencySymbol = selectedOption.dataset.symbol;
              } else {
-                 // Fallback to USD if loaded currency is no longer an option 
                  currencyCode = 'USD';
                  currencySymbol = '$';
              }
@@ -238,211 +404,198 @@ function handleHotelSearch(city, checkin, checkout) {
         if (state.d || state.destinations) destinations = state.d || state.destinations;
         startDateInput.value = startDate;
         totalDaysInput.value = totalDays;
-        
-        // Set selector value
         currencySelector.value = currencyCode;
-
         renderList();
     }
 
     // --- RENDERIZADO ---
-    function createElement(tag, className, textContent = '') {
-        const el = document.createElement(tag);
-        if (className) el.className = className;
-        if (textContent) el.textContent = textContent;
-        return el;
-    }
-
+    
     function createDestinationCard(dest, index) {
-        const itemWrapper = createElement('div', 'destination-item-wrapper');
+        const template = document.getElementById('destination-template');
+        const clone = template.content.cloneNode(true);
+        const itemWrapper = clone.querySelector('.destination-item-wrapper');
+        
         itemWrapper.dataset.id = dest.id;
 
-        const card = createElement('div', 'destination-card p-4 bg-gray-800 rounded-xl shadow-lg transition-all duration-200 relative overflow-hidden mb-2');
-        const row = createElement('div', 'flex flex-col md:flex-row gap-4 items-start md:items-center');
-        
-        const leftCol = createElement('div', 'flex items-center gap-3 flex-grow w-full md:w-auto');
-        const dragHandle = createElement('button', 'drag-handle text-gray-500 hover:text-white p-2 cursor-move');
-        dragHandle.innerHTML = '<span data-lucide="grip-vertical" class="w-6 h-6"></span>';
-        
-        const infoCol = createElement('div', 'flex-grow w-full');
-        const nameInput = createElement('input', 'city-name text-xl font-bold bg-transparent border-none p-1 -m-1 rounded-md focus:bg-gray-700 focus:ring-1 focus:ring-blue-500 w-full placeholder-gray-500');
+        const nameInput = clone.querySelector('.city-name-input');
         nameInput.value = dest.name;
         nameInput.dataset.id = dest.id;
-        nameInput.dataset.action = 'edit-name';
-        nameInput.placeholder = "City Name";
+        nameInput.parentElement.classList.add('relative');
 
-        const datesDisplay = createElement('div', 'date-display text-sm text-gray-400 mt-1 flex items-center gap-2');
-        infoCol.append(nameInput, datesDisplay);
-        leftCol.append(dragHandle, infoCol);
-
-        const rightCol = createElement('div', 'flex items-center gap-3 w-full md:w-auto justify-between md:justify-end bg-gray-900/50 p-2 rounded-lg border border-gray-700/50');
-        
-        // --- Accommodation Search Buttons ---
-        const searchBtnsWrapper = createElement('div', 'flex gap-2');
-
-        const bookingBtn = createElement('button', 'bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors shadow-sm');
-        bookingBtn.dataset.action = 'search-hotel';
-        bookingBtn.title = "Search on Booking.com";
-        bookingBtn.innerHTML = '<span data-lucide="bed-double" class="w-4 h-4"></span><span class="hidden sm:inline font-medium">Booking</span>';
-        
-        // NEW: Airbnb button
-        const airbnbBtn = createElement('button', 'bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors shadow-sm');
-        airbnbBtn.dataset.action = 'search-airbnb';
-        airbnbBtn.title = "Search on Airbnb";
-        airbnbBtn.innerHTML = '<span data-lucide="house" class="w-4 h-4"></span><span class="hidden sm:inline font-medium">Airbnb</span>';
-        
-        searchBtnsWrapper.append(bookingBtn, airbnbBtn);
-        // --- End Search Buttons ---
-
-        const accWrapper = createElement('div', 'relative group');
-        accWrapper.title = "Accommodation Cost";
-        // FIX: Add translate="no" to the currency symbol span
-        accWrapper.innerHTML = `<span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs" translate="no">${currencySymbol}</span>`; 
-        const accInput = createElement('input', 'accommodation-cost-input w-20 bg-gray-800 text-white text-sm rounded border border-gray-600 p-2 pl-5 focus:ring-indigo-500 focus:outline-none');
-        accInput.type = "number";
-        // FIX: Add translate="no" to the input itself (affects placeholder/value in translation)
-        accInput.setAttribute('translate', 'no');
-        accInput.placeholder = "0";
-        accInput.min = "0";
-        accInput.value = dest.accommodationCost || '';
-        accInput.dataset.id = dest.id;
-        accInput.dataset.action = 'edit-acc-cost';
-        accWrapper.appendChild(accInput);
-
-        const daysWrapper = createElement('div', 'flex flex-col items-center');
-        daysWrapper.innerHTML = '<label class="text-[10px] text-gray-400 uppercase font-bold mb-0.5">Days</label>';
-        const daysInput = createElement('input', 'days-input w-16 p-1 text-center text-base font-bold bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500');
-        daysInput.type = "number";
-        daysInput.min = "1";
+        const daysInput = clone.querySelector('.days-input');
         daysInput.value = dest.days;
         daysInput.dataset.id = dest.id;
-        daysInput.dataset.action = 'edit-days';
-        daysWrapper.appendChild(daysInput);
 
-        const deleteBtn = createElement('button', 'delete-btn text-gray-500 hover:text-red-400 hover:bg-red-900/30 p-2 rounded transition-colors ml-1');
-        deleteBtn.title = "Delete";
-        deleteBtn.innerHTML = '<span data-lucide="trash-2" class="w-4 h-4"></span>';
+        const accInput = clone.querySelector('.acc-cost-input');
+        accInput.value = dest.accommodationCost;
+        accInput.dataset.id = dest.id;
+        
+        const currencyLabel = clone.querySelector('.currency-symbol');
+        currencyLabel.textContent = currencySymbol;
+
+        const deleteBtn = clone.querySelector('.delete-btn');
         deleteBtn.dataset.id = dest.id;
-        deleteBtn.dataset.action = 'delete';
 
-        // Updated rightCol append to include the search buttons wrapper
-        rightCol.append(searchBtnsWrapper, accWrapper, daysWrapper, deleteBtn);
-        row.append(leftCol, rightCol);
-        card.appendChild(row);
-        itemWrapper.appendChild(card);
-
+        const connectorContainer = clone.querySelector('.transport-connector-container');
         if (index < destinations.length - 1) {
-            const connector = createElement('div', 'transport-connector flex items-center justify-center relative gap-2 my-2 flex-col'); // Add flex-col for stacking
-            connector.innerHTML = `<div class="border-l-2 border-dashed border-gray-600 h-16 absolute top-0" style="left: 50%; transform: translateX(-50%); z-index: 0;"></div>`;
-            
-            // NOTE: Adjusted classes for controls to be flex-col and have a width
-            const controls = createElement('div', 'z-10 flex flex-col gap-2 bg-gray-900 p-2 rounded-lg border border-gray-700 shadow-xl w-64'); 
-            
-            // MAIN CONTROL ROW (Select, Cost, Search Buttons)
-            const mainControls = createElement('div', 'flex items-center gap-2 w-full');
-            
-            const select = createElement('select', 'transport-select bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 focus:ring-blue-500 focus:outline-none flex-grow');
-            select.dataset.id = dest.id;
-            select.dataset.action = 'edit-transport';
-            ['plane|✈️ Plane', 'train|🚈 Train', 'bus|🚌 Bus', 'car|🚗 Car'].forEach(opt => {
-                const [val, label] = opt.split('|');
-                const option = new Option(label, val);
-                if(dest.transport === val) option.selected = true;
-                select.appendChild(option);
-            });
-
-            const costWrapper = createElement('div', 'relative flex-shrink-0');
-            // FIX: Add translate="no" to the currency symbol span
-            costWrapper.innerHTML = `<span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs" translate="no">${currencySymbol}</span>`;
-            const costInput = createElement('input', 'cost-input w-20 bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 pl-5 focus:ring-blue-500 focus:outline-none');
-            costInput.type = "number";
-            // FIX: Add translate="no" to the input itself
-            costInput.setAttribute('translate', 'no');
-            costInput.placeholder = "Cost";
-            costInput.min = "0";
-            costInput.value = dest.transportCost || '';
-            costInput.dataset.id = dest.id;
-            costInput.dataset.action = 'edit-trans-cost';
-            costWrapper.appendChild(costInput);
-
-            mainControls.append(select, costWrapper);
-            
-            // Conditional search buttons
-            if (dest.transport === 'plane') {
-                const flightBtn = createElement('button', 'bg-sky-600 hover:bg-sky-500 text-white p-1.5 rounded shadow transition-colors flex-shrink-0');
-                flightBtn.dataset.action = 'search-flight';
-                flightBtn.title = "Search flights";
-                flightBtn.innerHTML = '<span data-lucide="search" class="w-3 h-3"></span>';
-                mainControls.appendChild(flightBtn);
-            }
-            if (dest.transport === 'bus') {
-                const busBtn = createElement('button', 'bg-green-600 hover:bg-green-500 text-white p-1.5 rounded shadow transition-colors flex-shrink-0');
-                busBtn.dataset.action = 'search-bus'; 
-                busBtn.title = "Search route (Rome2Rio)";
-                busBtn.innerHTML = '<span data-lucide="bus" class="w-3 h-3"></span>';
-                mainControls.appendChild(busBtn);
-            }
-            if (dest.transport === 'train') {
-                const trainBtn = createElement('button', 'bg-red-600 hover:bg-red-500 text-white p-1.5 rounded shadow transition-colors flex-shrink-0');
-                trainBtn.dataset.action = 'search-train'; 
-                trainBtn.title = "Search route (Rome2Rio)";
-                trainBtn.innerHTML = '<span data-lucide="train" class="w-3 h-3"></span>'; 
-                mainControls.appendChild(trainBtn);
-            }
-
-            // APPEND MAIN CONTROLS TO THE CONTAINER
-            controls.appendChild(mainControls);
-            
-            // NEW DETAIL INPUTS SECTION
-            
-            // Helper function to create an input element with dataset properties
-            const createDetailInput = (action, type, placeholder, value, icon, extraClass = '') => {
-                const wrapper = createElement('div', `flex-1 relative ${extraClass}`);
-                wrapper.title = placeholder;
-                const iconSpan = createElement('span', 'absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500');
-                iconSpan.innerHTML = `<span data-lucide="${icon}" class="w-3 h-3"></span>`;
-                
-                const input = createElement('input', 'transport-detail-input w-full bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 pl-6 focus:ring-blue-500 focus:outline-none');
-                input.type = type;
-                input.placeholder = placeholder;
-                input.value = value || '';
-                input.dataset.id = dest.id;
-                input.dataset.action = action;
-                if(type === 'time' || action === 'edit-flight-num') input.setAttribute('translate', 'no');
-                
-                wrapper.append(iconSpan, input);
-                return wrapper;
-            };
-
-            const timeRefRow = createElement('div', 'flex gap-2 w-full');
-            timeRefRow.append(
-                createDetailInput('edit-dep-time', 'time', 'Depart', dest.departureTime, 'clock'),
-                createDetailInput('edit-arr-time', 'time', 'Arrive', dest.arrivalTime, 'clock-3')
-            );
-            
-            // NEW: Flight Number Input
-            const flightNumInputWrapper = createDetailInput('edit-flight-num', 'text', 'Flight Number (IB2601)', dest.flightNumber, 'plane'); 
-            
-            // NEW: FlightStats Button
-            const flightStatsBtn = createElement('button', 'bg-gray-600 hover:bg-gray-500 text-white p-1.5 rounded shadow transition-colors flex-shrink-0'); 
-            flightStatsBtn.dataset.action = 'search-flightstats'; 
-            flightStatsBtn.title = "Track Flight (FlightStats)"; 
-            flightStatsBtn.innerHTML = '<span data-lucide="compass" class="w-3 h-3"></span>'; 
-
-            // NEW: Conditional rendering for flight details
-            if (dest.transport === 'plane') {
-                const flightDetailRow = createElement('div', 'flex gap-2 w-full items-center');
-                flightDetailRow.append(flightNumInputWrapper, flightStatsBtn);
-                controls.append(timeRefRow, flightDetailRow);
-            } else {
-                controls.append(timeRefRow);
-            }
-            
-            connector.appendChild(controls);
-            itemWrapper.appendChild(connector);
+            const connector = createTransportConnector(dest);
+            connectorContainer.appendChild(connector);
+        } else {
+            connectorContainer.remove();
         }
 
         return itemWrapper;
+    }
+
+    function createTransportConnector(dest) {
+        const connector = document.createElement('div');
+        connector.className = 'transport-connector flex items-center justify-center relative gap-2 my-2 flex-col';
+        
+        const verticalLine = document.createElement('div');
+        verticalLine.className = 'border-l-2 border-dashed border-gray-600 h-16 absolute top-0';
+        Object.assign(verticalLine.style, {
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: '0'
+        });
+        connector.appendChild(verticalLine);
+        
+        const controls = document.createElement('div');
+        controls.className = 'z-10 flex flex-col gap-2 bg-gray-900 p-2 rounded-lg border border-gray-700 shadow-xl w-80';
+
+        const mainControls = document.createElement('div');
+        mainControls.className = 'flex items-center gap-2 w-full';
+
+        const select = document.createElement('select');
+        select.className = 'transport-select bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 focus:ring-blue-500 focus:outline-none flex-grow';
+        select.dataset.id = dest.id;
+        select.dataset.action = 'edit-transport';
+        select.setAttribute('aria-label', 'Transport Method');
+        
+        ['plane|✈️ Plane', 'train|🚈 Train', 'bus|🚌 Bus', 'car|🚗 Car'].forEach(opt => {
+            const [val, label] = opt.split('|');
+            const option = new Option(label, val);
+            if(dest.transport === val) option.selected = true;
+            select.appendChild(option);
+        });
+
+        const costWrapper = document.createElement('div');
+        costWrapper.className = 'relative flex-shrink-0';
+        
+        const currencySpan = document.createElement('span');
+        currencySpan.className = 'absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs';
+        currencySpan.setAttribute('translate', 'no');
+        currencySpan.textContent = currencySymbol;
+        costWrapper.appendChild(currencySpan);
+        
+        const costInput = document.createElement('input');
+        costInput.className = 'cost-input w-20 bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 pl-5 focus:ring-blue-500 focus:outline-none';
+        costInput.type = "number";
+        costInput.placeholder = "Cost";
+        costInput.min = "0";
+        costInput.value = dest.transportCost || '';
+        costInput.dataset.id = dest.id;
+        costInput.dataset.action = 'edit-trans-cost';
+        costWrapper.appendChild(costInput);
+
+        mainControls.append(select, costWrapper);
+
+        let searchBtn = null;
+        if (dest.transport === 'plane') {
+            searchBtn = createIconButton('search-flight', 'search', 'Search flights', 'bg-sky-600 hover:bg-sky-500');
+        } else if (dest.transport === 'bus') {
+            searchBtn = createIconButton('search-bus', 'bus', 'Search route', 'bg-green-600 hover:bg-green-500');
+        } else if (dest.transport === 'train') {
+            searchBtn = createIconButton('search-train', 'train', 'Search route', 'bg-red-600 hover:bg-red-500');
+        }
+        if (searchBtn) mainControls.appendChild(searchBtn);
+
+        controls.appendChild(mainControls);
+
+        const timeRefRow = document.createElement('div');
+        timeRefRow.className = 'flex gap-2 w-full';
+        
+        const createDetailInput = (action, type, placeholder, value, iconName) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex-1 relative';
+            wrapper.title = placeholder;
+            
+            const iconContainer = document.createElement('span');
+            iconContainer.className = 'absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500';
+            
+            const iconEl = document.createElement('span');
+            iconEl.dataset.lucide = iconName;
+            iconEl.className = 'w-3 h-3';
+            
+            iconContainer.appendChild(iconEl);
+            wrapper.appendChild(iconContainer);
+            
+            const input = document.createElement('input');
+            input.className = 'transport-detail-input w-full bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 pl-6 focus:ring-blue-500 focus:outline-none';
+            input.type = type;
+            input.placeholder = placeholder;
+            input.value = value || '';
+            input.dataset.id = dest.id;
+            input.dataset.action = action;
+            if (type === 'time' || action === 'edit-flight-num') input.setAttribute('translate', 'no');
+            
+            wrapper.appendChild(input);
+            return wrapper;
+        };
+
+        const offsetWrapper = document.createElement('div');
+        offsetWrapper.className = 'relative w-16 flex-shrink-0';
+        offsetWrapper.title = "+ Days";
+        
+        const plusSpan = document.createElement('span');
+        plusSpan.className = 'absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs font-bold';
+        plusSpan.textContent = '+';
+        offsetWrapper.appendChild(plusSpan);
+
+        const offsetInput = document.createElement('input');
+        offsetInput.className = 'transport-detail-input w-full bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 pl-5 focus:ring-blue-500 focus:outline-none';
+        offsetInput.type = "number";
+        offsetInput.min = "0";
+        offsetInput.value = dest.arrivalDayOffset > 0 ? dest.arrivalDayOffset : '';
+        offsetInput.dataset.id = dest.id;
+        offsetInput.dataset.action = 'edit-arr-offset';
+        offsetWrapper.appendChild(offsetInput);
+
+        timeRefRow.append(
+            createDetailInput('edit-dep-time', 'time', 'Depart', dest.departureTime, 'clock'),
+            createDetailInput('edit-arr-time', 'time', 'Arrive', dest.arrivalTime, 'clock-3'),
+            offsetWrapper
+        );
+        
+        controls.appendChild(timeRefRow);
+
+        if (dest.transport === 'plane') {
+            const flightRow = document.createElement('div');
+            flightRow.className = 'flex gap-2 w-full items-center mt-1';
+            const flightNumInput = createDetailInput('edit-flight-num', 'text', 'Flight No (IB2601)', dest.flightNumber, 'plane');
+            const statsBtn = createIconButton('search-flightstats', 'compass', 'Track Flight', 'bg-gray-600 hover:bg-gray-500');
+            statsBtn.dataset.fltnum = dest.flightNumber;
+            
+            flightRow.append(flightNumInput, statsBtn);
+            controls.appendChild(flightRow);
+        }
+
+        connector.appendChild(controls);
+        return connector;
+    }
+
+    function createIconButton(action, iconName, title, colorClass) {
+        const btn = document.createElement('button');
+        btn.className = `${colorClass} text-white p-1.5 rounded shadow transition-colors flex-shrink-0`;
+        btn.dataset.action = action;
+        btn.title = title;
+        
+        const iconSpan = document.createElement('span');
+        iconSpan.dataset.lucide = iconName;
+        iconSpan.className = 'w-3 h-3';
+        
+        btn.appendChild(iconSpan);
+        return btn;
     }
 
     function renderList() {
@@ -478,11 +631,10 @@ function handleHotelSearch(city, checkin, checkout) {
             const endDate = DateUtils.addDays(currentStartDate, dest.days);
             
             const dateDisplay = item.querySelector('.date-display');
-            // Using user's locale for date format
             if (dateDisplay) dateDisplay.textContent = `${DateUtils.formatLocale(currentStartDate)} → ${DateUtils.formatLocale(endDate)}`;
 
             const bookingBtn = item.querySelector('[data-action="search-hotel"]');
-            const airbnbBtn = item.querySelector('[data-action="search-airbnb"]'); // Select the new Airbnb button
+            const airbnbBtn = item.querySelector('[data-action="search-airbnb"]'); 
             
             if (bookingBtn) {
                 bookingBtn.dataset.name = dest.name;
@@ -490,7 +642,6 @@ function handleHotelSearch(city, checkin, checkout) {
                 bookingBtn.dataset.end = endDate; 
             }
             
-            // NEW: Assign data to Airbnb button
             if (airbnbBtn) {
                 airbnbBtn.dataset.name = dest.name;
                 airbnbBtn.dataset.start = currentStartDate; 
@@ -502,8 +653,6 @@ function handleHotelSearch(city, checkin, checkout) {
             const trainBtn = item.querySelector('[data-action="search-train"]'); 
             const flightStatsBtn = item.querySelector('[data-action="search-flightstats"]'); 
 
-            
-            // Asignar los datos de Origen/Destino/Fecha al botón de búsqueda
             if ((flightBtn || busBtn || trainBtn || flightStatsBtn) && index < destinations.length - 1) { 
                 const nextDest = destinations[index + 1];
                 
@@ -512,30 +661,24 @@ function handleHotelSearch(city, checkin, checkout) {
                     flightBtn.dataset.dest = nextDest.name;
                     flightBtn.dataset.date = endDate;
                 }
-                
-                // ASIGNACIÓN DE DATOS AL BOTÓN DE BUS
                 if (busBtn) {
                     busBtn.dataset.origin = dest.name;
                     busBtn.dataset.dest = nextDest.name;
                     busBtn.dataset.date = endDate;
                 }
-                
-                // ASIGNACIÓN DE DATOS AL BOTÓN DE TRAIN
                 if (trainBtn) {
                     trainBtn.dataset.origin = dest.name;
                     trainBtn.dataset.dest = nextDest.name;
                     trainBtn.dataset.date = endDate;
                 }
-                
-                // NEW: ASSIGN DATA TO FLIGHTSTATS BUTTON
                 if (flightStatsBtn) {
                      flightStatsBtn.dataset.fltnum = dest.flightNumber; 
                      flightStatsBtn.dataset.date = endDate; 
                 }
             }
 
-
-            currentStartDate = endDate;
+            const travelOffset = parseInt(dest.arrivalDayOffset) || 0;
+            currentStartDate = DateUtils.addDays(endDate, travelOffset);
         });
 
         const remaining = totalDays - totalPlannedDays;
@@ -548,12 +691,10 @@ function handleHotelSearch(city, checkin, checkout) {
         else if (remaining === 0) summaryRemainingBox.classList.add('bg-green-900/50', 'border-green-700');
         else summaryRemainingBox.classList.add('bg-gray-700', 'border-gray-600');
 
-        // Update currency symbols
         accCurrencySymbol.textContent = currencySymbol;
         transCurrencySymbol.textContent = currencySymbol;
         globalCurrencySymbol.textContent = currencySymbol;
         
-        // Use localized number formatting
         totalAccommodationSpan.textContent = formatCost(totalAccCost);
         totalTransportSpan.textContent = formatCost(totalTransCost);
         totalGlobalSpan.textContent = formatCost(totalAccCost + totalTransCost);
@@ -562,6 +703,13 @@ function handleHotelSearch(city, checkin, checkout) {
     }
 
     // --- LISTENERS ---
+    // Listener global para cerrar sugerencias al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.autocomplete-suggestions') && !e.target.classList.contains('city-name-input')) {
+            closeAllSuggestions();
+        }
+    });
+
     destinationList.addEventListener('input', (e) => {
         const target = e.target;
         const action = target.dataset.action;
@@ -570,14 +718,33 @@ function handleHotelSearch(city, checkin, checkout) {
         const dest = destinations.find(d => d.id === id);
         if (!dest) return;
 
-        if (action === 'edit-name') { dest.name = target.value; updateURL(); }
+        if (action === 'edit-name') { 
+            dest.name = target.value; 
+            updateURL(); 
+            handleCitySearch(target, id);
+        }
         if (action === 'edit-days') { dest.days = parseInt(target.value) || 1; updateCalculations(); }
         if (action === 'edit-acc-cost') { dest.accommodationCost = target.value; updateCalculations(); }
         if (action === 'edit-trans-cost') { dest.transportCost = target.value; updateCalculations(); }
-        // NEW: Detailed Transport Listeners (only require URL update)
         if (action === 'edit-dep-time') { dest.departureTime = target.value; updateURL(); }
         if (action === 'edit-arr-time') { dest.arrivalTime = target.value; updateURL(); }
-        if (action === 'edit-flight-num') { dest.flightNumber = target.value; updateCalculations(); } 
+        if (action === 'edit-flight-num') { dest.flightNumber = target.value; updateCalculations(); }
+        
+        if (action === 'edit-arr-offset') { 
+            let val = parseInt(target.value);
+            if (isNaN(val) || val < 0) {
+                val = 0;
+                if (target.value !== '') target.value = 0;
+            }
+            dest.arrivalDayOffset = val; 
+            updateCalculations(); 
+        } 
+    });
+
+    destinationList.addEventListener('keydown', (e) => {
+        if (e.target.type === 'number' && (e.key === '-' || e.key === 'e')) {
+            e.preventDefault();
+        }
     });
 
     destinationList.addEventListener('change', (e) => {
@@ -602,7 +769,6 @@ function handleHotelSearch(city, checkin, checkout) {
         if (action === 'search-hotel') {
             handleHotelSearch(btn.dataset.name, btn.dataset.start, btn.dataset.end);
         }
-        // NEW: Airbnb search listener
         if (action === 'search-airbnb') {
              handleAirbnbSearch(btn.dataset.name, btn.dataset.start, btn.dataset.end);
         }
@@ -612,25 +778,35 @@ function handleHotelSearch(city, checkin, checkout) {
         if (action === 'search-bus') {
             handleBusSearch(btn.dataset.origin, btn.dataset.dest, btn.dataset.date); 
         }
-        // NEW: Train Search Listener
         if (action === 'search-train') {
             handleTrainSearch(btn.dataset.origin, btn.dataset.dest, btn.dataset.date); 
         }
-        // NEW: FlightStats Listener
         if (action === 'search-flightstats') {
              handleFlightStatsSearch(btn.dataset.fltnum, btn.dataset.date); 
         }
     });
     
-    // Currency Selector Listener
     currencySelector.addEventListener('change', (e) => {
         currencyCode = e.target.value;
         const selectedOption = e.target.querySelector(`option[value="${currencyCode}"]`);
         currencySymbol = selectedOption ? selectedOption.dataset.symbol : '$';
-        renderList(); // Re-render list to update currency symbols in inputs
+        renderList(); 
     });
+    
+    // Listeners para el historial
+    if(saveHistoryBtn) saveHistoryBtn.addEventListener('click', saveToHistory);
+    if(closeHistoryBtn) closeHistoryBtn.addEventListener('click', closeSidebar);
+    
+    if(toggleHistoryBtn) {
+        toggleHistoryBtn.addEventListener('click', () => {
+            if (historySidebar.classList.contains('-translate-x-full')) {
+                openSidebar();
+            } else {
+                closeSidebar();
+            }
+        });
+    }
 
-    // --- GLOBAL FUNCTIONALITY (Security Fix Applied) ---
     function showModal(message, onConfirm, title = i18n.get("modal_info")) {
         const existingModal = document.getElementById('custom-modal');
         if (existingModal) existingModal.remove();
@@ -638,7 +814,6 @@ function handleHotelSearch(city, checkin, checkout) {
         modal.id = 'custom-modal';
         modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
         
-        // Safe modal construction without innerHTML for the message
         const container = document.createElement('div');
         container.className = 'bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm';
         
@@ -648,7 +823,7 @@ function handleHotelSearch(city, checkin, checkout) {
         
         const p = document.createElement('p');
         p.className = 'text-gray-300 mb-6';
-        p.textContent = message; // <-- Using textContent avoids XSS
+        p.textContent = message; 
 
         const btnContainer = document.createElement('div');
         btnContainer.className = 'flex justify-end gap-3';
@@ -659,13 +834,19 @@ function handleHotelSearch(city, checkin, checkout) {
             cancelBtn.textContent = 'Cancel';
             cancelBtn.onclick = () => modal.remove();
             btnContainer.appendChild(cancelBtn);
+            
+            const okBtn = document.createElement('button');
+            okBtn.className = 'px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg';
+            okBtn.textContent = 'OK';
+            okBtn.onclick = () => { onConfirm(); modal.remove(); };
+            btnContainer.appendChild(okBtn);
+        } else {
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg';
+            closeBtn.textContent = 'Close';
+            closeBtn.onclick = () => modal.remove();
+            btnContainer.appendChild(closeBtn);
         }
-
-        const okBtn = document.createElement('button');
-        okBtn.className = 'px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg';
-        okBtn.textContent = onConfirm ? 'OK' : 'Close';
-        okBtn.onclick = () => { if (onConfirm) onConfirm(); modal.remove(); };
-        btnContainer.appendChild(okBtn);
 
         container.append(h3, p, btnContainer);
         modal.appendChild(container);
@@ -680,21 +861,21 @@ function handleHotelSearch(city, checkin, checkout) {
             const start = DateUtils.formatICS(curr);
             const next = DateUtils.addDays(curr, dest.days);
             const end = DateUtils.formatICS(next);
-            // Use i18n for description text and dynamic currency symbol/formatted cost
             let desc = `${i18n.get("ics_stay")}: ${dest.days} days.`;
             if (dest.accommodationCost) desc += `\\n${i18n.get("ics_hotel")}: ${currencySymbol}${formatCost(dest.accommodationCost)}`;
             
             if (idx < destinations.length - 1) {
                 if (dest.transportCost) desc += `\\n${i18n.get("ics_transport")}: ${dest.transport} (${currencySymbol}${formatCost(dest.transportCost)})`;
-                
-                // NEW: Add detailed transport info
                 if (dest.departureTime) desc += `\\nDeparture Time: ${dest.departureTime}`;
                 if (dest.arrivalTime) desc += `\\nArrival Time: ${dest.arrivalTime}`;
                 if (dest.flightNumber) desc += `\\nFlight No: ${dest.flightNumber}`;
+                if (dest.arrivalDayOffset > 0) desc += `\\nArrival Offset: +${dest.arrivalDayOffset} day(s)`;
             }
 
             ics.push("BEGIN:VEVENT", `DTSTART;VALUE=DATE:${start}`, `DTEND;VALUE=DATE:${end}`, `SUMMARY:${i18n.get("ics_trip_to")} ${dest.name}`, `DESCRIPTION:${desc}`, "END:VEVENT");
-            curr = next;
+            
+            const travelOffset = parseInt(dest.arrivalDayOffset) || 0;
+            curr = DateUtils.addDays(next, travelOffset);
         });
         ics.push("END:VCALENDAR");
         const blob = new Blob([ics.join("\r\n")], { type: 'text/calendar;charset=utf-8' });
@@ -706,7 +887,6 @@ function handleHotelSearch(city, checkin, checkout) {
 
     function generateId() { return crypto.randomUUID(); }
     
-    // MODIFIED: Add new fields to the initial destination object
     function addDestination(name = "New City") {
         destinations.push({ 
             id: generateId(), 
@@ -715,10 +895,11 @@ function handleHotelSearch(city, checkin, checkout) {
             accommodationCost: "", 
             transport: "plane", 
             transportCost: "",
-            departureTime: "", // NEW
-            arrivalTime: "",   // NEW
-            bookingRef: "",    // KEPT FOR STATE/STORAGE, but field is unused
-            flightNumber: ""   // NEW: Flight Number
+            departureTime: "", 
+            arrivalTime: "",   
+            arrivalDayOffset: 0,
+            bookingRef: "",    
+            flightNumber: ""   
         });
         renderList();
     }
@@ -735,15 +916,13 @@ function handleHotelSearch(city, checkin, checkout) {
             renderList();
         });
         
-        // FIX: The keydown listener for Bulk Add (Enter key)
         bulkAddTextarea.addEventListener('keydown', (e) => { 
             if (e.key === 'Enter' && !e.shiftKey) { 
                 e.preventDefault(); 
-                bulkAddBtn.click(); // Trigger bulk add on Enter
+                bulkAddBtn.click(); 
             } 
         });
         
-        // Now supports commas AND new lines
         bulkAddBtn.addEventListener('click', () => {
             if (bulkAddTextarea.value) { 
                 bulkAddTextarea.value.split(/[\n,]/).forEach(n => { if(n.trim()) addDestination(n.trim()) }); 
@@ -754,13 +933,11 @@ function handleHotelSearch(city, checkin, checkout) {
         resetBtn.addEventListener('click', () => showModal(i18n.get("modal_delete_everything"), () => { destinations=[]; startDate=new Date().toISOString().split('T')[0]; totalDays=14; startDateInput.value=startDate; totalDaysInput.value=totalDays; updateCalculations(); renderList(); }, i18n.get("modal_confirm_reset")));
         saveBtn.addEventListener('click', () => {
             if (!destinations.length) return showModal(i18n.get("modal_empty_itinerary"), null, i18n.get("modal_info"));
-            // Include currencyCode in saved JSON
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({startDate, totalDays, currencyCode, destinations}, null, 2)], {type:'application/json'}));
             a.download=`trip-${startDate}.json`; a.click();
         });
         loadBtn.addEventListener('click', () => loadInput.click());
         
-        // FIX: The load JSON input handler
         loadInput.addEventListener('change', (e) => {
             const f = e.target.files[0];
             if(f) { 
@@ -768,7 +945,6 @@ function handleHotelSearch(city, checkin, checkout) {
                 r.onload=(ev)=>{ 
                     try{ 
                         const d=JSON.parse(ev.target.result); 
-                        // Validate if loaded data has main state fields
                         if (d && (d.destinations || d.d || d.s || d.t)) { 
                             applyState(d); 
                         } else {
@@ -788,18 +964,25 @@ function handleHotelSearch(city, checkin, checkout) {
 
         new Sortable(destinationList, { animation: 150, handle: '.drag-handle', ghostClass: 'dragging', onEnd: (evt) => { const [m]=destinations.splice(evt.oldIndex,1); destinations.splice(evt.newIndex,0,m); renderList(); } });
 
-        // Initialization: Load state before rendering
         if (!startDateInput.value) startDateInput.value = startDate;
         totalDaysInput.value = totalDays;
         
-        // Set currencySelector default value before loading from URL
         currencySelector.value = currencyCode; 
 
-        // FIX: Ensure Lucide icons are rendered for static elements like the '+' button.
         lucide.createIcons();
 
         loadFromURL();
-        if (!destinations.length) renderList(); // Initial render if no destinations loaded from URL
+        
+        // Inicializar historial y recuperar estado
+        renderHistory();
+        if (tripHistory.length > 0) {
+             const wasOpen = localStorage.getItem('history_sidebar_open') === 'true';
+             if (wasOpen) {
+                 openSidebar();
+             }
+        }
+
+        if (!destinations.length) renderList(); 
     }
     init();
 });

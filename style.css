@@ -32,3 +32,34 @@ input[type=number]::-webkit-outer-spin-button {
 input[type=number] {
     -moz-appearance: textfield;
 }
+
+/* --- FIXES PARA AUTOCOMPLETADO Y Z-INDEX --- */
+/* Asegura que la tarjeta activa siempre esté por encima de las demás */
+.destination-item-wrapper {
+    position: relative;
+    z-index: 10; /* Nivel base */
+}
+
+.destination-item-wrapper:focus-within {
+    z-index: 50; /* Nivel superior cuando estás escribiendo para que el dropdown tape a la siguiente tarjeta */
+}
+
+/* Por seguridad, forzamos que la tarjeta no recorte el contenido */
+.destination-card {
+    overflow: visible !important;
+}
+
+/* --- ESTILOS PARA EL HISTORIAL --- */
+#history-list::-webkit-scrollbar {
+    width: 6px;
+}
+#history-list::-webkit-scrollbar-track {
+    background: #1f2937; 
+}
+#history-list::-webkit-scrollbar-thumb {
+    background: #4b5563; 
+    border-radius: 3px;
+}
+#history-list::-webkit-scrollbar-thumb:hover {
+    background: #6b7280; 
+}

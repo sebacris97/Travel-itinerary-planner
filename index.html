@@ -43,7 +43,7 @@
                     <label for="totalDays" class="block text-sm font-medium text-gray-300 mb-1">Total Trip Days</label>
                     <div class="flex gap-2">
                         <input type="number" id="totalDays" min="1" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" value="14">
-                        <button id="autofill-days-btn" title="Autofill Days Equally" class="flex-shrink-0 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-all duration-200 text-sm">
+                        <button id="autofill-days-btn" title="Autofill Days Equally" aria-label="Autofill days equally among destinations" class="flex-shrink-0 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-all duration-200 text-sm">
                             Autofill Days
                         </button>
                     </div>
@@ -92,7 +92,7 @@
                 <label for="bulk-add" class="block text-sm font-medium text-gray-300 mb-2">Add Multiple Cities (e.g. Barcelona, Paris, London)</label>
                 <div class="flex gap-2">
                     <textarea id="bulk-add" rows="2" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Barcelona, Paris, London..."></textarea>
-                    <button id="bulk-add-btn" class="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md transition-all duration-200 flex-shrink-0" title="Add Cities">
+                    <button id="bulk-add-btn" class="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md transition-all duration-200 flex-shrink-0" title="Add Cities" aria-label="Add multiple cities">
                         <span data-lucide="plus"></span>
                     </button>
                 </div>
@@ -103,26 +103,104 @@
                 Add New Destination
             </button>
             
-            <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
-                <button id="reset-btn" class="w-full py-2 px-4 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+            <div class="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2">
+                <button id="save-history-btn" class="w-full py-2 px-4 bg-pink-600 hover:bg-pink-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm" aria-label="Save to History">
+                    <span data-lucide="bookmark"></span> Save History
+                </button>
+                <button id="reset-btn" class="w-full py-2 px-4 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm" aria-label="Reset itinerary">
                     <span data-lucide="refresh-cw"></span> Reset
                 </button>
-                <button id="save-btn" class="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                <button id="save-btn" class="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm" aria-label="Save as JSON">
                     <span data-lucide="save"></span> Save JSON
                 </button>
-                <button id="load-btn" class="w-full py-2 px-4 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                <button id="load-btn" class="w-full py-2 px-4 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm" aria-label="Load from JSON">
                     <span data-lucide="upload"></span> Load JSON
                 </button>
-                <button id="copy-url-btn" class="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                <button id="copy-url-btn" class="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm" aria-label="Copy URL to clipboard">
                     <span data-lucide="link"></span> Copy URL
                 </button>
-                <button id="export-ics-btn" class="w-full py-2 px-4 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+                <button id="export-ics-btn" class="w-full py-2 px-4 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg shadow transition-all duration-200 flex items-center justify-center gap-2 text-sm" aria-label="Export to ICS Calendar">
                     <span data-lucide="calendar"></span> Export ICS
                 </button>
                 <input type="file" id="load-input" accept=".json" class="hidden">
             </div>
         </footer>
     </div>
+
+    <div id="history-sidebar" class="fixed top-0 left-0 h-full w-64 bg-gray-900 border-r border-gray-700 shadow-2xl transform transition-transform duration-300 -translate-x-full z-40 flex flex-col hidden">
+        <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800">
+            <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                <span data-lucide="history"></span> History
+            </h3>
+            <button id="close-history-btn" class="text-gray-400 hover:text-white">
+                <span data-lucide="x"></span>
+            </button>
+        </div>
+        <div class="p-4 flex-grow overflow-y-auto" id="history-list">
+            </div>
+        <div class="p-4 border-t border-gray-700 bg-gray-800 text-xs text-gray-500 text-center">
+            Click on a trip to load it
+        </div>
+    </div>
+
+    <button id="toggle-history-btn" class="fixed top-1/2 left-0 transform -translate-y-1/2 bg-gray-800 border-r border-t border-b border-gray-600 p-2 rounded-r-lg text-white shadow-lg z-30 hover:bg-gray-700 hidden" title="Show History">
+        <span data-lucide="chevron-right"></span>
+    </button>
+
+    <template id="destination-template">
+        <div class="destination-item-wrapper">
+            <div class="destination-card p-4 bg-gray-800 rounded-xl shadow-lg transition-all duration-200 relative mb-2">
+                <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                    
+                    <div class="flex items-center gap-3 flex-grow w-full md:w-auto">
+                        <button class="drag-handle text-gray-500 hover:text-white p-2 cursor-move" aria-label="Drag to reorder">
+                            <span data-lucide="grip-vertical" class="w-6 h-6"></span>
+                        </button>
+                        
+                        <div class="flex-grow w-full">
+                            <input type="text" class="city-name-input text-xl font-bold bg-transparent border-none p-1 -m-1 rounded-md focus:bg-gray-700 focus:ring-1 focus:ring-blue-500 w-full placeholder-gray-500" 
+                                   placeholder="City Name" aria-label="City Name" data-action="edit-name">
+                            <div class="date-display text-sm text-gray-400 mt-1 flex items-center gap-2"></div>
+                        </div>
+                    </div>
+    
+                    <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end bg-gray-900/50 p-2 rounded-lg border border-gray-700/50">
+                        
+                        <div class="flex gap-2">
+                            <button class="booking-btn bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors shadow-sm" 
+                                    data-action="search-hotel" title="Search on Booking.com" aria-label="Search on Booking.com">
+                                <span data-lucide="bed-double" class="w-4 h-4"></span>
+                                <span class="hidden sm:inline font-medium">Booking</span>
+                            </button>
+                            <button class="airbnb-btn bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors shadow-sm" 
+                                    data-action="search-airbnb" title="Search on Airbnb" aria-label="Search on Airbnb">
+                                <span data-lucide="house" class="w-4 h-4"></span>
+                                <span class="hidden sm:inline font-medium">Airbnb</span>
+                            </button>
+                        </div>
+    
+                        <div class="relative group" title="Accommodation Cost">
+                            <span class="currency-symbol absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs" translate="no">$</span>
+                            <input type="number" class="acc-cost-input w-20 bg-gray-800 text-white text-sm rounded border border-gray-600 p-2 pl-5 focus:ring-indigo-500 focus:outline-none" 
+                                   placeholder="0" min="0" data-action="edit-acc-cost" aria-label="Accommodation Cost" translate="no">
+                        </div>
+    
+                        <div class="flex flex-col items-center">
+                            <label class="text-[10px] text-gray-400 uppercase font-bold mb-0.5">Days</label>
+                            <input type="number" class="days-input w-16 p-1 text-center text-base font-bold bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                   min="1" data-action="edit-days" aria-label="Number of days">
+                        </div>
+    
+                        <button class="delete-btn text-gray-500 hover:text-red-400 hover:bg-red-900/30 p-2 rounded transition-colors ml-1" 
+                                title="Delete" aria-label="Delete destination" data-action="delete">
+                            <span data-lucide="trash-2" class="w-4 h-4"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="transport-connector-container"></div>
+        </div>
+    </template>
 
     <script src="script.js"></script>
 </body>
