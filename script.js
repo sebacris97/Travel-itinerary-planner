@@ -101,80 +101,143 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- HISTORIAL Y GUARDADO ---
     let tripHistory = JSON.parse(localStorage.getItem('trip_history') || '[]');
+    let activeTripId = localStorage.getItem('active_trip_id');
 
-    function saveToHistory() {
-        const name = prompt("Enter a name for this trip (e.g., 'Summer 2024'):", `Trip ${new Date().toLocaleDateString()}`);
-        if (!name) return;
-
-        updateURL();
-        
-        const newTrip = {
-            id: crypto.randomUUID(),
-            name: name.trim(),
-            url: window.location.href,
-            date: new Date().toISOString()
-        };
-
-        tripHistory.unshift(newTrip);
-        localStorage.setItem('trip_history', JSON.stringify(tripHistory));
-        
-        renderHistory();
-        openSidebar();
+    function setActiveTrip(id) {
+        activeTripId = id;
+        if (id) {
+            localStorage.setItem('active_trip_id', id);
+        } else {
+            localStorage.removeItem('active_trip_id');
+        }
     }
 
-    // NUEVA FUNCIÓN: Renombrar viaje
+    function saveToHistory() {
+        const existingTrip = activeTripId ? tripHistory.find(t => t.id === activeTripId) : null;
+
+        if (existingTrip) {
+            showSaveOptionsModal(
+                existingTrip.name,
+                () => { // Overwrite
+                    updateURL(); 
+                    existingTrip.url = window.location.href;
+                    existingTrip.date = new Date().toISOString();
+                    // Mover al principio
+                    tripHistory = tripHistory.filter(t => t.id !== activeTripId);
+                    tripHistory.unshift(existingTrip);
+                    localStorage.setItem('trip_history', JSON.stringify(tripHistory));
+                    renderHistory();
+                    openSidebar();
+                },
+                () => { // Save New
+                    promptNewSave();
+                }
+            );
+        } else {
+            promptNewSave();
+        }
+    }
+
+    function promptNewSave() {
+        showPromptModal(
+            "Save New Trip", 
+            "Enter a name for this trip:", 
+            `Trip ${new Date().toLocaleDateString()}`, 
+            (name) => {
+                if (!name) return;
+                updateURL();
+                const newId = crypto.randomUUID();
+                const newTrip = {
+                    id: newId,
+                    name: name.trim(),
+                    url: window.location.href,
+                    date: new Date().toISOString()
+                };
+                tripHistory.unshift(newTrip);
+                localStorage.setItem('trip_history', JSON.stringify(tripHistory));
+                setActiveTrip(newId);
+                renderHistory();
+                openSidebar();
+            }
+        );
+    }
+
     function renameTrip(e, id) {
-        e.stopPropagation(); // Evita que se cargue el viaje al hacer clic en el lápiz
-        
+        e.stopPropagation();
         const trip = tripHistory.find(t => t.id === id);
         if (!trip) return;
 
-        const newName = prompt("Rename trip:", trip.name);
-        if (newName && newName.trim() !== "") {
-            trip.name = newName.trim();
-            localStorage.setItem('trip_history', JSON.stringify(tripHistory));
-            renderHistory();
-        }
+        showPromptModal(
+            "Rename Trip", 
+            "Enter new name:", 
+            trip.name, 
+            (newName) => {
+                if (newName && newName.trim() !== "") {
+                    trip.name = newName.trim();
+                    localStorage.setItem('trip_history', JSON.stringify(tripHistory));
+                    renderHistory();
+                }
+            }
+        );
     }
 
     function deleteFromHistory(e, id) {
         e.stopPropagation(); 
-        if(!confirm("Delete this trip from history?")) return;
-
-        tripHistory = tripHistory.filter(t => t.id !== id);
-        localStorage.setItem('trip_history', JSON.stringify(tripHistory));
-        renderHistory();
+        
+        showModal(
+            "Are you sure you want to delete this trip from history?", 
+            () => {
+                tripHistory = tripHistory.filter(t => t.id !== id);
+                localStorage.setItem('trip_history', JSON.stringify(tripHistory));
+                if (activeTripId === id) {
+                    setActiveTrip(null);
+                }
+                renderHistory();
+            },
+            "Delete Trip"
+        );
     }
 
-    function loadTripFromHistory(url) {
-        window.location.href = url;
+    function loadTripFromHistory(trip) {
+        setActiveTrip(trip.id);
+        window.location.href = trip.url;
     }
 
     function renderHistory() {
         historyList.innerHTML = '';
-
-        if (tripHistory.length === 0) {
-            historySidebar.classList.add('hidden');
-            toggleHistoryBtn.classList.add('hidden');
-            closeSidebar();
-            return;
-        }
-
         toggleHistoryBtn.classList.remove('hidden');
         historySidebar.classList.remove('hidden');
 
+        if (tripHistory.length === 0) {
+            const emptyMsg = document.createElement('div');
+            emptyMsg.className = 'flex flex-col items-center justify-center h-40 text-gray-500 text-center italic p-4 border-2 border-dashed border-gray-800 rounded-lg';
+            emptyMsg.innerHTML = `
+                <span data-lucide="history" class="w-8 h-8 mb-2 opacity-50"></span>
+                <p class="text-xs">No history saved.</p>
+            `;
+            historyList.appendChild(emptyMsg);
+            lucide.createIcons();
+            return;
+        }
+
         tripHistory.forEach(trip => {
             const item = document.createElement('div');
-            item.className = 'bg-gray-800 border border-gray-700 rounded-lg p-3 mb-3 hover:border-blue-500 transition-colors cursor-pointer group relative';
-            item.onclick = () => loadTripFromHistory(trip.url);
+            const isActive = trip.id === activeTripId;
+            
+            // Lógica de estilo: Borde azul si es activo, pero SIN texto "ACTIVE"
+            const borderClass = isActive ? 'border-blue-500 bg-gray-800/80 ring-1 ring-blue-500' : 'border-gray-700 bg-gray-800 hover:border-blue-400';
+            
+            item.className = `${borderClass} border rounded-lg p-3 mb-3 transition-all cursor-pointer group relative`;
+            item.onclick = () => loadTripFromHistory(trip);
 
             const dateStr = new Date(trip.date).toLocaleDateString();
             
-            // Actualizado: Agregado botón de edición (pencil) y contenedor flex para los botones
             item.innerHTML = `
                 <div class="flex justify-between items-start">
                     <div class="flex-grow pr-2 overflow-hidden">
-                        <h4 class="font-bold text-sm text-blue-300 mb-1 group-hover:text-blue-400 truncate" title="${trip.name}">${trip.name}</h4>
+                        <h4 class="font-bold text-sm ${isActive ? 'text-blue-400' : 'text-gray-300'} mb-1 truncate" title="${trip.name}">
+                            ${trip.name}
+                        </h4>
                         <p class="text-[10px] text-gray-500">Saved: ${dateStr}</p>
                     </div>
                     <div class="flex gap-1 shrink-0">
@@ -188,11 +251,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            // Listener para editar
             const editBtn = item.querySelector('.edit-history-btn');
             editBtn.addEventListener('click', (e) => renameTrip(e, trip.id));
 
-            // Listener para borrar
             const delBtn = item.querySelector('.delete-history-btn');
             delBtn.addEventListener('click', (e) => deleteFromHistory(e, trip.id));
 
@@ -211,6 +272,198 @@ document.addEventListener('DOMContentLoaded', () => {
         historySidebar.classList.add('-translate-x-full');
         localStorage.setItem('history_sidebar_open', 'false');
     }
+
+    // --- MODALES (Mejorados con Teclado) ---
+
+    function showModal(message, onConfirm, title = i18n.get("modal_info")) {
+        const existingModal = document.getElementById('custom-modal');
+        if (existingModal) existingModal.remove();
+        
+        const modal = document.createElement('div');
+        modal.id = 'custom-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
+        
+        const container = document.createElement('div');
+        container.className = 'bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm border border-gray-700';
+        
+        const h3 = document.createElement('h3');
+        h3.className = 'text-xl font-bold mb-4 text-white';
+        h3.textContent = title;
+        
+        const p = document.createElement('p');
+        p.className = 'text-gray-300 mb-6';
+        p.textContent = message; 
+
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'flex justify-end gap-3';
+
+        // Lógica de cierre
+        const closeModal = () => {
+            document.removeEventListener('keydown', handleKey);
+            modal.remove();
+        };
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors';
+        cancelBtn.textContent = onConfirm ? 'Cancel' : 'Close';
+        cancelBtn.onclick = closeModal;
+        btnContainer.appendChild(cancelBtn);
+        
+        let okBtn;
+        if (onConfirm) {
+            okBtn = document.createElement('button');
+            okBtn.className = 'px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium';
+            okBtn.textContent = 'Confirm';
+            okBtn.onclick = () => { onConfirm(); closeModal(); };
+            btnContainer.appendChild(okBtn);
+        }
+
+        container.append(h3, p, btnContainer);
+        modal.appendChild(container);
+        document.body.appendChild(modal);
+
+        // Manejador de Teclado
+        const handleKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeModal();
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (onConfirm) {
+                    onConfirm();
+                    closeModal();
+                } else {
+                    closeModal();
+                }
+            }
+        };
+        document.addEventListener('keydown', handleKey);
+
+        if(okBtn) okBtn.focus();
+        else cancelBtn.focus();
+    }
+
+    function showPromptModal(title, message, defaultValue, onConfirm) {
+        const existingModal = document.getElementById('custom-modal');
+        if (existingModal) existingModal.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'custom-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
+        
+        const container = document.createElement('div');
+        container.className = 'bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm border border-gray-700';
+        
+        const h3 = document.createElement('h3');
+        h3.className = 'text-xl font-bold mb-4 text-white';
+        h3.textContent = title;
+        
+        const p = document.createElement('label');
+        p.className = 'block text-gray-300 mb-2 text-sm';
+        p.textContent = message; 
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'w-full p-2 mb-6 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none';
+        input.value = defaultValue || '';
+
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'flex justify-end gap-3';
+
+        const closeModal = () => {
+            document.removeEventListener('keydown', handleKey);
+            modal.remove();
+        };
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = closeModal;
+        btnContainer.appendChild(cancelBtn);
+        
+        const okBtn = document.createElement('button');
+        okBtn.className = 'px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors';
+        okBtn.textContent = 'OK';
+        
+        const handleConfirm = () => {
+            const val = input.value;
+            onConfirm(val);
+            closeModal();
+        };
+
+        okBtn.onclick = handleConfirm;
+        btnContainer.appendChild(okBtn);
+        container.append(h3, p, input, btnContainer);
+        modal.appendChild(container);
+        document.body.appendChild(modal);
+        
+        setTimeout(() => input.focus(), 50);
+
+        const handleKey = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); handleConfirm(); }
+            if (e.key === 'Escape') { e.preventDefault(); closeModal(); }
+        };
+        document.addEventListener('keydown', handleKey);
+    }
+
+    function showSaveOptionsModal(currentName, onOverwrite, onSaveNew) {
+        const existingModal = document.getElementById('custom-modal');
+        if (existingModal) existingModal.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'custom-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
+        
+        const container = document.createElement('div');
+        container.className = 'bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm border border-gray-700';
+        
+        const h3 = document.createElement('h3');
+        h3.className = 'text-xl font-bold mb-4 text-white';
+        h3.textContent = "Save Trip";
+        
+        const p = document.createElement('p');
+        p.className = 'text-gray-300 mb-6 text-sm';
+        p.innerHTML = `You are currently editing <b>${currentName}</b>.<br>Do you want to overwrite it or create a new copy?`; 
+
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'flex flex-col gap-2';
+
+        const closeModal = () => { 
+            document.removeEventListener('keydown', handleKey);
+            modal.remove(); 
+        };
+
+        const overwriteBtn = document.createElement('button');
+        overwriteBtn.className = 'w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2';
+        overwriteBtn.innerHTML = '<span data-lucide="save"></span> Overwrite Existing';
+        overwriteBtn.onclick = () => { onOverwrite(); closeModal(); };
+        
+        const newBtn = document.createElement('button');
+        newBtn.className = 'w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2';
+        newBtn.innerHTML = '<span data-lucide="copy-plus"></span> Save as New';
+        newBtn.onclick = () => { onSaveNew(); closeModal(); };
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'w-full px-4 py-2 mt-2 text-gray-400 hover:text-white text-sm';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = closeModal;
+
+        btnContainer.append(overwriteBtn, newBtn, cancelBtn);
+        container.append(h3, p, btnContainer);
+        modal.appendChild(container);
+        document.body.appendChild(modal);
+        lucide.createIcons();
+
+        const handleKey = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); overwriteBtn.click(); }
+            if (e.key === 'Escape') { e.preventDefault(); closeModal(); }
+        };
+        document.addEventListener('keydown', handleKey);
+        
+        overwriteBtn.focus();
+    }
+
 
     // --- AUTOCOMPLETE ---
     const debounce = (func, delay) => {
@@ -408,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderList();
     }
 
-    // --- RENDERIZADO ---
+    // --- RENDERIZADO SEGURO ---
     
     function createDestinationCard(dest, index) {
         const template = document.getElementById('destination-template');
@@ -807,52 +1060,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function showModal(message, onConfirm, title = i18n.get("modal_info")) {
-        const existingModal = document.getElementById('custom-modal');
-        if (existingModal) existingModal.remove();
-        const modal = document.createElement('div');
-        modal.id = 'custom-modal';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
-        
-        const container = document.createElement('div');
-        container.className = 'bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm';
-        
-        const h3 = document.createElement('h3');
-        h3.className = 'text-xl font-bold mb-4';
-        h3.textContent = title;
-        
-        const p = document.createElement('p');
-        p.className = 'text-gray-300 mb-6';
-        p.textContent = message; 
-
-        const btnContainer = document.createElement('div');
-        btnContainer.className = 'flex justify-end gap-3';
-
-        if (onConfirm) {
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg';
-            cancelBtn.textContent = 'Cancel';
-            cancelBtn.onclick = () => modal.remove();
-            btnContainer.appendChild(cancelBtn);
-            
-            const okBtn = document.createElement('button');
-            okBtn.className = 'px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg';
-            okBtn.textContent = 'OK';
-            okBtn.onclick = () => { onConfirm(); modal.remove(); };
-            btnContainer.appendChild(okBtn);
-        } else {
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg';
-            closeBtn.textContent = 'Close';
-            closeBtn.onclick = () => modal.remove();
-            btnContainer.appendChild(closeBtn);
-        }
-
-        container.append(h3, p, btnContainer);
-        modal.appendChild(container);
-        document.body.appendChild(modal);
-    }
-
     function exportToICS() {
         if (destinations.length === 0) return showModal(i18n.get("ics_no_destinations"), null, i18n.get("modal_info"));
         let ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//TripPlan//EN", "CALSCALE:GREGORIAN"];
@@ -930,7 +1137,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        resetBtn.addEventListener('click', () => showModal(i18n.get("modal_delete_everything"), () => { destinations=[]; startDate=new Date().toISOString().split('T')[0]; totalDays=14; startDateInput.value=startDate; totalDaysInput.value=totalDays; updateCalculations(); renderList(); }, i18n.get("modal_confirm_reset")));
+        resetBtn.addEventListener('click', () => showModal(i18n.get("modal_delete_everything"), () => { 
+            destinations=[]; 
+            startDate=new Date().toISOString().split('T')[0]; 
+            totalDays=14; 
+            startDateInput.value=startDate; 
+            totalDaysInput.value=totalDays; 
+            // setActiveTrip(null); // COMENTADO: Mantenemos el viaje activo para permitir sobrescribirlo si el usuario quiere
+            updateCalculations(); 
+            renderList(); 
+        }, i18n.get("modal_confirm_reset")));
+
         saveBtn.addEventListener('click', () => {
             if (!destinations.length) return showModal(i18n.get("modal_empty_itinerary"), null, i18n.get("modal_info"));
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({startDate, totalDays, currencyCode, destinations}, null, 2)], {type:'application/json'}));
@@ -947,6 +1164,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const d=JSON.parse(ev.target.result); 
                         if (d && (d.destinations || d.d || d.s || d.t)) { 
                             applyState(d); 
+                            setActiveTrip(null); // Al cargar desde archivo, se considera nuevo/no guardado en historial
                         } else {
                             showModal(i18n.get("modal_invalid_json"), null, i18n.get("modal_error"));
                         }
@@ -975,7 +1193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Inicializar historial y recuperar estado
         renderHistory();
-        if (tripHistory.length > 0) {
+        if (tripHistory.length > 0 || localStorage.getItem('history_sidebar_open') === 'true') {
              const wasOpen = localStorage.getItem('history_sidebar_open') === 'true';
              if (wasOpen) {
                  openSidebar();
