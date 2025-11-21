@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
             (name) => {
                 if (!name) return;
                 updateURL();
-                const newId = crypto.randomUUID();
+                const newId = generateId(); // Usamos la nueva función mejorada
                 const newTrip = {
                     id: newId,
                     name: name.trim(),
@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renameTrip(e, id) {
-        e.stopPropagation();
+        // e.stopPropagation(); // Ya no es necesario con delegación, pero no daña
         const trip = tripHistory.find(t => t.id === id);
         if (!trip) return;
 
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function deleteFromHistory(e, id) {
-        e.stopPropagation(); 
+        // e.stopPropagation(); // Ya no es necesario con delegación
         
         showModal(
             "Are you sure you want to delete this trip from history?", 
@@ -239,9 +239,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!data) throw new Error("Invalid seed");
                     
                     const importedHistory = JSON.parse(data);
-                    if (!Array.isArray(importedHistory)) throw new Error("Invalid format");
+                    
+                    // MEJORA: Validación robusta
+                    if (!Array.isArray(importedHistory)) throw new Error("Invalid format: Not an array");
+                    
+                    // Filtramos elementos inválidos
+                    const validHistory = importedHistory.filter(t => t && t.id && t.name && t.url);
+                    
+                    if (validHistory.length === 0 && importedHistory.length > 0) {
+                         throw new Error("Invalid format: No valid trips found");
+                    }
 
-                    tripHistory = importedHistory;
+                    tripHistory = validHistory;
                     localStorage.setItem('trip_history', JSON.stringify(tripHistory));
                     setActiveTrip(null);
                     renderHistory();
@@ -255,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function renderHistory() {
-        historyList.innerHTML = '';
+        historyList.innerHTML = ''; // Limpieza segura
         toggleHistoryBtn.classList.remove('hidden');
         historySidebar.classList.remove('hidden');
 
@@ -271,45 +280,38 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const template = document.getElementById('history-item-template');
+        const fragment = document.createDocumentFragment(); // MEJORA: DocumentFragment
+
         tripHistory.forEach(trip => {
-            const item = document.createElement('div');
+            // MEJORA: Uso de Template y textContent (Anti-XSS)
+            const clone = template.content.cloneNode(true);
+            const itemDiv = clone.querySelector('.history-item');
+            
+            itemDiv.dataset.tripId = trip.id; // ID para delegación
+
             const isActive = trip.id === activeTripId;
             
-            const borderClass = isActive ? 'border-blue-500 bg-gray-800/80 ring-1 ring-blue-500' : 'border-gray-700 bg-gray-800 hover:border-blue-400';
+            if (isActive) {
+                itemDiv.classList.add('border-blue-500', 'bg-gray-800/80', 'ring-1', 'ring-blue-500');
+                itemDiv.querySelector('.history-name').classList.add('text-blue-400');
+            } else {
+                itemDiv.classList.add('border-gray-700', 'bg-gray-800', 'hover:border-blue-400');
+                itemDiv.querySelector('.history-name').classList.add('text-gray-300');
+            }
+
+            // Datos seguros con textContent
+            itemDiv.querySelector('.history-name').textContent = trip.name;
+            itemDiv.querySelector('.history-name').title = trip.name;
+            itemDiv.querySelector('.history-date').textContent = `Saved: ${new Date(trip.date).toLocaleDateString()}`;
+
+            // NOTA: Ya no añadimos listeners individuales a los botones aquí
+            // Se manejan globalmente en el listener del historyList
             
-            item.className = `${borderClass} border rounded-lg p-3 mb-3 transition-all cursor-pointer group relative`;
-            item.onclick = () => loadTripFromHistory(trip);
-
-            const dateStr = new Date(trip.date).toLocaleDateString();
-            
-            item.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div class="flex-grow pr-2 overflow-hidden">
-                        <h4 class="font-bold text-sm ${isActive ? 'text-blue-400' : 'text-gray-300'} mb-1 truncate" title="${trip.name}">
-                            ${trip.name}
-                        </h4>
-                        <p class="text-[10px] text-gray-500">Saved: ${dateStr}</p>
-                    </div>
-                    <div class="flex gap-1 shrink-0">
-                        <button class="edit-history-btn text-gray-500 hover:text-yellow-400 p-1 rounded hover:bg-gray-700 transition-colors" title="Rename">
-                            <span data-lucide="pencil" class="w-3 h-3"></span>
-                        </button>
-                        <button class="delete-history-btn text-gray-500 hover:text-red-400 p-1 rounded hover:bg-gray-700 transition-colors" title="Delete">
-                            <span data-lucide="trash-2" class="w-3 h-3"></span>
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            const editBtn = item.querySelector('.edit-history-btn');
-            editBtn.addEventListener('click', (e) => renameTrip(e, trip.id));
-
-            const delBtn = item.querySelector('.delete-history-btn');
-            delBtn.addEventListener('click', (e) => deleteFromHistory(e, trip.id));
-
-            historyList.appendChild(item);
+            fragment.appendChild(clone);
         });
         
+        historyList.appendChild(fragment);
         lucide.createIcons();
     }
 
@@ -324,7 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- MODALES ---
-
+    // ... (Las funciones modales showModal, showPromptModal, etc. se mantienen igual) ...
     function showModal(message, onConfirm, title = i18n.get("modal_info")) {
         const existingModal = document.getElementById('custom-modal');
         if (existingModal) existingModal.remove();
@@ -645,6 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- EXTERNAL SERVICES ---
+    // ... (Funciones handleFlightSearch, handleBusSearch, etc. se mantienen igual) ...
     function handleFlightSearch(originName, destName, dateStr) {
         if (!originName || !destName) {
             showModal(i18n.get("info_incomplete_data"), null, i18n.get("modal_info"));
@@ -796,6 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createTransportConnector(dest) {
+        // ... (Función createTransportConnector sin cambios significativos) ...
         const connector = document.createElement('div');
         connector.className = 'transport-connector flex items-center justify-center relative gap-2 my-2 flex-col';
         
@@ -960,6 +964,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateCalculations() {
+        // ... (Sin cambios) ...
         let currentStartDate = startDate;
         let totalPlannedDays = 0;
         let totalAccCost = 0;
@@ -1051,6 +1056,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- LISTENERS ---
+    
+    // MEJORA: Delegación de eventos para el Historial
+    historyList.addEventListener('click', (e) => {
+        const tripId = e.target.closest('.history-item')?.dataset.tripId;
+        if (!tripId) return;
+
+        // 1. Manejar Botones (Editar / Borrar)
+        if (e.target.closest('.edit-history-btn')) {
+            // No necesitamos stopPropagation porque gestionamos la lógica aquí
+            renameTrip(e, tripId); 
+            return;
+        }
+        if (e.target.closest('.delete-history-btn')) {
+            deleteFromHistory(e, tripId);
+            return;
+        }
+
+        // 2. Manejar clic en el item (Cargar viaje)
+        // Si no se hizo clic en un botón, asumimos que se quiere cargar
+        const trip = tripHistory.find(t => t.id === tripId);
+        if (trip) loadTripFromHistory(trip);
+    });
+
     // Listener global para cerrar sugerencias al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.autocomplete-suggestions') && !e.target.classList.contains('city-name-input')) {
@@ -1110,9 +1138,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!btn) return;
         const action = btn.dataset.action;
         
-        if (action === 'delete') {
-            destinations = destinations.filter(d => d.id !== btn.dataset.id);
-            renderList();
+	if (action === 'delete') {
+            showModal(
+                "Are you sure you want to delete this destination?", 
+                () => {
+                    destinations = destinations.filter(d => d.id !== btn.dataset.id);
+                    renderList();
+                },
+                "Delete Destination"
+            );
         }
         if (action === 'search-hotel') {
             handleHotelSearch(btn.dataset.name, btn.dataset.start, btn.dataset.end);
@@ -1158,6 +1192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function exportToICS() {
+        // ... (Sin cambios) ...
         if (destinations.length === 0) return showModal(i18n.get("ics_no_destinations"), null, i18n.get("modal_info"));
         let ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//TripPlan//EN", "CALSCALE:GREGORIAN"];
         let curr = startDate;
@@ -1189,7 +1224,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
     }
 
-    function generateId() { return crypto.randomUUID(); }
+    // MEJORA: Fallback para generar IDs seguros
+    function generateId() { 
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID(); 
+        }
+        return 'id-' + Math.random().toString(36).substr(2, 16);
+    }
     
     function addDestination(name = "New City") {
         destinations.push({ 

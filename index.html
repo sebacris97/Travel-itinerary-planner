@@ -158,6 +158,25 @@
         <span data-lucide="chevron-right"></span>
     </button>
 
+    <template id="history-item-template">
+        <div class="history-item border rounded-lg p-3 mb-3 transition-all cursor-pointer group relative">
+            <div class="flex justify-between items-start">
+                <div class="flex-grow pr-2 overflow-hidden">
+                    <h4 class="history-name font-bold text-sm mb-1 truncate"></h4>
+                    <p class="history-date text-[10px] text-gray-500"></p>
+                </div>
+                <div class="flex gap-1 shrink-0">
+                    <button class="edit-history-btn text-gray-500 hover:text-yellow-400 p-1 rounded hover:bg-gray-700 transition-colors" title="Rename">
+                        <span data-lucide="pencil" class="w-3 h-3"></span>
+                    </button>
+                    <button class="delete-history-btn text-gray-500 hover:text-red-400 p-1 rounded hover:bg-gray-700 transition-colors" title="Delete">
+                        <span data-lucide="trash-2" class="w-3 h-3"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
     <template id="destination-template">
         <div class="destination-item-wrapper">
             <div class="destination-card p-4 bg-gray-800 rounded-xl shadow-lg transition-all duration-200 relative mb-2">
