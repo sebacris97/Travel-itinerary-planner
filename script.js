@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cost || isNaN(cost)) return '0';
         return parseFloat(cost).toLocaleString(userLocale, {
              minimumFractionDigits: 0,
-             maximumFractionDigits: 0
+             maximumFractionDigits: 2
         });
     }
 
@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
             (name) => {
                 if (!name) return;
                 updateURL();
-                const newId = generateId(); // Usamos la nueva función mejorada
+                const newId = generateId(); 
                 const newTrip = {
                     id: newId,
                     name: name.trim(),
@@ -166,7 +166,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renameTrip(e, id) {
-        // e.stopPropagation(); // Ya no es necesario con delegación, pero no daña
         const trip = tripHistory.find(t => t.id === id);
         if (!trip) return;
 
@@ -185,8 +184,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function deleteFromHistory(e, id) {
-        // e.stopPropagation(); // Ya no es necesario con delegación
-        
         showModal(
             "Are you sure you want to delete this trip from history?", 
             () => {
@@ -240,10 +237,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const importedHistory = JSON.parse(data);
                     
-                    // MEJORA: Validación robusta
                     if (!Array.isArray(importedHistory)) throw new Error("Invalid format: Not an array");
                     
-                    // Filtramos elementos inválidos
                     const validHistory = importedHistory.filter(t => t && t.id && t.name && t.url);
                     
                     if (validHistory.length === 0 && importedHistory.length > 0) {
@@ -264,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function renderHistory() {
-        historyList.innerHTML = ''; // Limpieza segura
+        historyList.innerHTML = ''; 
         toggleHistoryBtn.classList.remove('hidden');
         historySidebar.classList.remove('hidden');
 
@@ -281,14 +276,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const template = document.getElementById('history-item-template');
-        const fragment = document.createDocumentFragment(); // MEJORA: DocumentFragment
+        const fragment = document.createDocumentFragment(); 
 
         tripHistory.forEach(trip => {
-            // MEJORA: Uso de Template y textContent (Anti-XSS)
             const clone = template.content.cloneNode(true);
             const itemDiv = clone.querySelector('.history-item');
             
-            itemDiv.dataset.tripId = trip.id; // ID para delegación
+            itemDiv.dataset.tripId = trip.id; 
 
             const isActive = trip.id === activeTripId;
             
@@ -300,14 +294,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 itemDiv.querySelector('.history-name').classList.add('text-gray-300');
             }
 
-            // Datos seguros con textContent
             itemDiv.querySelector('.history-name').textContent = trip.name;
             itemDiv.querySelector('.history-name').title = trip.name;
             itemDiv.querySelector('.history-date').textContent = `Saved: ${new Date(trip.date).toLocaleDateString()}`;
 
-            // NOTA: Ya no añadimos listeners individuales a los botones aquí
-            // Se manejan globalmente en el listener del historyList
-            
             fragment.appendChild(clone);
         });
         
@@ -326,7 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- MODALES ---
-    // ... (Las funciones modales showModal, showPromptModal, etc. se mantienen igual) ...
     function showModal(message, onConfirm, title = i18n.get("modal_info")) {
         const existingModal = document.getElementById('custom-modal');
         if (existingModal) existingModal.remove();
@@ -647,7 +636,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- EXTERNAL SERVICES ---
-    // ... (Funciones handleFlightSearch, handleBusSearch, etc. se mantienen igual) ...
     function handleFlightSearch(originName, destName, dateStr) {
         if (!originName || !destName) {
             showModal(i18n.get("info_incomplete_data"), null, i18n.get("modal_info"));
@@ -776,10 +764,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const daysInput = clone.querySelector('.days-input');
         daysInput.value = dest.days;
         daysInput.dataset.id = dest.id;
+        daysInput.min = "1";  // Validacion HTML: Mínimo 1
+        daysInput.step = "1"; // Validacion HTML: Enteros
 
         const accInput = clone.querySelector('.acc-cost-input');
         accInput.value = dest.accommodationCost;
         accInput.dataset.id = dest.id;
+        accInput.min = "0";   // Validacion HTML: Mínimo 0
+        accInput.step = "0.01"; // Validacion HTML: Permite decimales
         
         const currencyLabel = clone.querySelector('.currency-symbol');
         currencyLabel.textContent = currencySymbol;
@@ -799,7 +791,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createTransportConnector(dest) {
-        // ... (Función createTransportConnector sin cambios significativos) ...
         const connector = document.createElement('div');
         connector.className = 'transport-connector flex items-center justify-center relative gap-2 my-2 flex-col';
         
@@ -845,6 +836,7 @@ document.addEventListener('DOMContentLoaded', () => {
         costInput.type = "number";
         costInput.placeholder = "Cost";
         costInput.min = "0";
+        costInput.step = "0.01";
         costInput.value = dest.transportCost || '';
         costInput.dataset.id = dest.id;
         costInput.dataset.action = 'edit-trans-cost';
@@ -908,6 +900,7 @@ document.addEventListener('DOMContentLoaded', () => {
         offsetInput.className = 'transport-detail-input w-full bg-gray-800 text-white text-xs rounded border border-gray-600 p-1.5 pl-5 focus:ring-blue-500 focus:outline-none';
         offsetInput.type = "number";
         offsetInput.min = "0";
+        offsetInput.step = "1";
         offsetInput.value = dest.arrivalDayOffset > 0 ? dest.arrivalDayOffset : '';
         offsetInput.dataset.id = dest.id;
         offsetInput.dataset.action = 'edit-arr-offset';
@@ -964,7 +957,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateCalculations() {
-        // ... (Sin cambios) ...
         let currentStartDate = startDate;
         let totalPlannedDays = 0;
         let totalAccCost = 0;
@@ -1055,16 +1047,41 @@ document.addEventListener('DOMContentLoaded', () => {
         updateURL();
     }
 
+    // --- VALIDACION DE PEGAR (PASTE) ---
+    function handlePasteValidation(e) {
+        const type = e.target.type;
+        if (type !== 'number') return;
+        
+        // Obtener el texto pegado
+        const paste = (e.clipboardData || window.clipboardData).getData('text');
+        
+        // Identificar contexto
+        const action = e.target.dataset.action;
+        const isInteger = e.target.classList.contains('days-input') || // Dias de ciudad
+                          e.target.id === 'totalDays' ||               // Dias totales
+                          action === 'edit-arr-offset';                // Offset
+        
+        if (isInteger) {
+             // Enteros estrictos: solo digitos.
+             // Bloquea puntos, comas, signos negativos, letras, etc.
+             if (!/^\d+$/.test(paste)) {
+                 e.preventDefault();
+             }
+        } else {
+             // Costos (Floats): digitos y punto (sin signo negativo)
+             if (!/^\d*\.?\d*$/.test(paste)) {
+                 e.preventDefault();
+             }
+        }
+    }
+
     // --- LISTENERS ---
     
-    // MEJORA: Delegación de eventos para el Historial
     historyList.addEventListener('click', (e) => {
         const tripId = e.target.closest('.history-item')?.dataset.tripId;
         if (!tripId) return;
 
-        // 1. Manejar Botones (Editar / Borrar)
         if (e.target.closest('.edit-history-btn')) {
-            // No necesitamos stopPropagation porque gestionamos la lógica aquí
             renameTrip(e, tripId); 
             return;
         }
@@ -1073,19 +1090,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 2. Manejar clic en el item (Cargar viaje)
-        // Si no se hizo clic en un botón, asumimos que se quiere cargar
         const trip = tripHistory.find(t => t.id === tripId);
         if (trip) loadTripFromHistory(trip);
     });
 
-    // Listener global para cerrar sugerencias al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.autocomplete-suggestions') && !e.target.classList.contains('city-name-input')) {
             closeAllSuggestions();
         }
     });
 
+    // Listener de 'input': valida inmediatamente si entra basura (ej. arrastrando)
     destinationList.addEventListener('input', (e) => {
         const target = e.target;
         const action = target.dataset.action;
@@ -1099,29 +1114,73 @@ document.addEventListener('DOMContentLoaded', () => {
             updateURL(); 
             handleCitySearch(target, id);
         }
-        if (action === 'edit-days') { dest.days = parseInt(target.value) || 1; updateCalculations(); }
-        if (action === 'edit-acc-cost') { dest.accommodationCost = target.value; updateCalculations(); }
-        if (action === 'edit-trans-cost') { dest.transportCost = target.value; updateCalculations(); }
+        
+        // Validacion Días (Entero >= 1)
+        if (action === 'edit-days') { 
+            let val = parseInt(target.value);
+            // Si es inválido o < 1, forzar a 1 visualmente y en modelo inmediatamente
+            // (Permitimos vacío temporalmente para que pueda borrar y escribir, pero no "0")
+            if (target.value !== '' && (isNaN(val) || val < 1)) {
+                val = 1;
+                target.value = 1; 
+            }
+            // Si está vacío, asumimos 1 para el cálculo pero dejamos el input vacío para UX
+            dest.days = isNaN(val) ? 1 : val; 
+            updateCalculations(); 
+        }
+        
+        // Validacion Costos (Reales >= 0)
+        if (action === 'edit-acc-cost') { 
+            if (target.value < 0) target.value = 0;
+            dest.accommodationCost = target.value; 
+            updateCalculations(); 
+        }
+        if (action === 'edit-trans-cost') { 
+            if (target.value < 0) target.value = 0;
+            dest.transportCost = target.value; 
+            updateCalculations(); 
+        }
+        
+        // Validacion Offset (Entero >= 0)
+        if (action === 'edit-arr-offset') { 
+            let val = parseInt(target.value);
+            if (target.value !== '' && (isNaN(val) || val < 0)) {
+                val = 0;
+                target.value = 0;
+            }
+            dest.arrivalDayOffset = isNaN(val) ? 0 : val; 
+            updateCalculations(); 
+        } 
+
         if (action === 'edit-dep-time') { dest.departureTime = target.value; updateURL(); }
         if (action === 'edit-arr-time') { dest.arrivalTime = target.value; updateURL(); }
         if (action === 'edit-flight-num') { dest.flightNumber = target.value; updateCalculations(); }
-        
-        if (action === 'edit-arr-offset') { 
-            let val = parseInt(target.value);
-            if (isNaN(val) || val < 0) {
-                val = 0;
-                if (target.value !== '') target.value = 0;
-            }
-            dest.arrivalDayOffset = val; 
-            updateCalculations(); 
-        } 
     });
 
+    // Bloqueo de teclas invalidas (Keydown)
     destinationList.addEventListener('keydown', (e) => {
-        if (e.target.type === 'number' && (e.key === '-' || e.key === 'e')) {
+        if (e.target.type !== 'number') return;
+
+        const action = e.target.dataset.action;
+        const isStrictInteger = 
+            e.target.classList.contains('days-input') || 
+            action === 'edit-arr-offset';
+
+        // Prohibir -, +, e
+        const invalidChars = ['-', '+', 'e'];
+
+        // Si es entero estricto, prohibir punto
+        if (isStrictInteger) {
+            invalidChars.push('.');
+        }
+
+        if (invalidChars.includes(e.key)) {
             e.preventDefault();
         }
     });
+
+    // Bloqueo de Pegado (Paste) Delegado
+    destinationList.addEventListener('paste', handlePasteValidation);
 
     destinationList.addEventListener('change', (e) => {
         if (e.target.dataset.action === 'edit-transport') {
@@ -1175,7 +1234,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderList(); 
     });
     
-    // Listeners para el historial
     if(saveHistoryBtn) saveHistoryBtn.addEventListener('click', saveToHistory);
     if(closeHistoryBtn) closeHistoryBtn.addEventListener('click', closeSidebar);
     if(copySeedBtn) copySeedBtn.addEventListener('click', copyHistorySeed);
@@ -1192,7 +1250,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function exportToICS() {
-        // ... (Sin cambios) ...
         if (destinations.length === 0) return showModal(i18n.get("ics_no_destinations"), null, i18n.get("modal_info"));
         let ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//TripPlan//EN", "CALSCALE:GREGORIAN"];
         let curr = startDate;
@@ -1224,7 +1281,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
     }
 
-    // MEJORA: Fallback para generar IDs seguros
     function generateId() { 
         if (typeof crypto !== 'undefined' && crypto.randomUUID) {
             return crypto.randomUUID(); 
@@ -1253,7 +1309,40 @@ document.addEventListener('DOMContentLoaded', () => {
     function init() {
         addBtn.addEventListener('click', () => addDestination());
         startDateInput.addEventListener('change', (e) => { startDate = e.target.value; updateCalculations(); });
-        totalDaysInput.addEventListener('change', (e) => { totalDays = parseInt(e.target.value, 10) || 1; updateCalculations(); });
+        
+        // Listeners para Total Days
+        totalDaysInput.addEventListener('keydown', (e) => {
+            if (['-', '+', 'e', '.'].includes(e.key)) {
+                e.preventDefault();
+            }
+        });
+
+        // Validar Pegado en Total Days
+        totalDaysInput.addEventListener('paste', handlePasteValidation);
+        
+        // Validar Input en tiempo real (no permitir < 1)
+        totalDaysInput.addEventListener('input', (e) => { 
+            let val = parseInt(e.target.value, 10);
+            // Si el usuario borra todo, dejamos vacío momentáneamente. Pero si escribe 0, corregimos.
+            if (e.target.value !== '' && (isNaN(val) || val < 1)) {
+                val = 1;
+                e.target.value = 1;
+            }
+            totalDays = isNaN(val) ? 1 : val; 
+            updateCalculations(); 
+        });
+
+        // Validar Change (blur) para asegurar que no quede vacío
+        totalDaysInput.addEventListener('change', (e) => {
+            let val = parseInt(e.target.value, 10);
+            if (isNaN(val) || val < 1) {
+                val = 1;
+                e.target.value = 1;
+            }
+            totalDays = val;
+            updateCalculations();
+        });
+        
         autofillBtn.addEventListener('click', () => {
             if (!destinations.length) return;
             const b = Math.floor(totalDays / destinations.length), r = totalDays % destinations.length;
@@ -1281,7 +1370,6 @@ document.addEventListener('DOMContentLoaded', () => {
             totalDays=14; 
             startDateInput.value=startDate; 
             totalDaysInput.value=totalDays; 
-            // setActiveTrip(null); // COMENTADO: Mantenemos el viaje activo para permitir sobrescribirlo si el usuario quiere
             updateCalculations(); 
             renderList(); 
         }, i18n.get("modal_confirm_reset")));
@@ -1302,7 +1390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const d=JSON.parse(ev.target.result); 
                         if (d && (d.destinations || d.d || d.s || d.t)) { 
                             applyState(d); 
-                            setActiveTrip(null); // Al cargar desde archivo, se considera nuevo/no guardado en historial
+                            setActiveTrip(null); 
                         } else {
                             showModal(i18n.get("modal_invalid_json"), null, i18n.get("modal_error"));
                         }
@@ -1329,19 +1417,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         loadFromURL();
         
-// Inicializar historial
         renderHistory();
         
         const isDesktop = window.innerWidth >= 768;
         
         if (isDesktop) {
              const storedState = localStorage.getItem('history_sidebar_open');
-             // Abrir si está guardado como 'true' O si nunca se guardó nada (primera vez / default)
              if (storedState === 'true' || storedState === null) {
                  openSidebar();
              }
         }
-        // En móvil: No hacemos nada, así se mantiene cerrado por defecto.
 
         if (!destinations.length) renderList(); 
     }
