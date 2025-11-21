@@ -635,15 +635,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- EXTERNAL SERVICES ---
-    function handleFlightSearch(originName, destName, dateStr) {
+	function handleFlightSearch(originName, destName, dateStr) {
         if (!originName || !destName) {
             showModal(i18n.get("info_incomplete_data"), null, i18n.get("modal_info"));
             return;
         }
-        const query = `flights from ${originName} to ${destName} on ${dateStr}`;
-        const url = `https://www.google.com/travel/flights?q=$?q=${encodeURIComponent(query)}&curr=${currencyCode}`;
-        window.open(url, '_blank', 'noopener,noreferrer');
+
+
+        const query = `from ${originName} to ${destName} on ${dateStr} one way`;
+        // CORRECCIÓN: Se usa la URL estándar de Google Flights y se agrega el parámetro de moneda (curr)
+        // También se corrigió el error de sintaxis en la interpolación de la URL original
+        const url = `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}&curr=${currencyCode}`;
+
+        window.open(url, '_blank');
     }
 
     function handleBusSearch(originName, destName, dateStr) {
@@ -1390,7 +1394,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const d=JSON.parse(ev.target.result); 
                         if (d && (d.destinations || d.d || d.s || d.t)) { 
                             applyState(d); 
-                            setActiveTrip(null); 
                         } else {
                             showModal(i18n.get("modal_invalid_json"), null, i18n.get("modal_error"));
                         }
